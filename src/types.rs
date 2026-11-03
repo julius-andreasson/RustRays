@@ -1,7 +1,36 @@
+pub mod ray {
+    use crate::types::vec3::Vec3;
+
+    #[derive(Clone, Copy)]
+    pub struct Ray {
+        orig: Vec3,
+        dir: Vec3
+    }
+
+    // Should it all be implemented using Clone?
+    impl Ray {
+        pub fn new(orig: Vec3, dir: Vec3) -> Ray {
+            Ray {orig, dir}
+        }
+        
+        pub fn orig(&self) -> Vec3 {
+            self.orig.clone()
+        }
+        
+        pub fn dir(&self) -> Vec3 {
+            self.dir.clone()
+        }
+
+        pub fn at(&self, c: f64) -> Vec3 {
+            self.orig.clone() + c * self.dir.clone()
+        }
+    }
+}
+
 pub mod vec3 {
     use std::ops;
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone, Copy)]
     pub struct Vec3 {
         pub x: f64,
         pub y: f64,
@@ -51,9 +80,7 @@ pub mod vec3 {
 
         pub fn unit_vec(self) -> Vec3 {
             // Compute length first, to avoid borrowing to both division function and length function simultaneously.
-            // What is the recommended way of doing this?
-            // Surely not cloning to every call. That would be terribly inefficient.
-            // And certainly not unsafely borrowing to multiple separately.
+            // Is there a recommended way of doing this?
             let len = self.length();
             self / len
         }
@@ -168,6 +195,40 @@ pub mod vec3 {
         }
     }
 
+}
+
+#[cfg(test)]
+mod ray_tests {
+    use crate::Ray;
+    use crate::Vec3;
+
+    #[test]
+    fn test_orig() {
+        let orig = Vec3 {x: 3.0, y: 4.0, z: 0.0};
+        let dir = Vec3 {x: 2.0, y: 1.0, z: 5.0};
+        let r = Ray::new(orig, dir);
+        let expected = Vec3 {x: 3.0, y: 4.0, z: 0.0};
+        assert_eq!(r.orig(), expected);
+    }
+
+    #[test]
+    fn test_dir() {
+        let orig = Vec3 {x: 3.0, y: 4.0, z: 0.0};
+        let dir = Vec3 {x: 2.0, y: 1.0, z: 5.0};
+        let r = Ray::new(orig, dir);
+        let expected = Vec3 {x: 2.0, y: 1.0, z: 5.0};
+        assert_eq!(r.dir(), expected);
+    }
+
+    #[test]
+    fn test_at() {
+        let orig = Vec3 {x: 3.0, y: 4.0, z: 0.0};
+        let dir = Vec3 {x: 2.0, y: 1.0, z: 5.0};
+        let c = 3.0;
+        let r = Ray::new(orig, dir);
+        let expected = Vec3 {x: 3.0 + 2.0 * 3.0, y: 4.0 + 1.0 * 3.0, z: 0.0 + 5.0 * 3.0};
+        assert_eq!(r.at(c), expected);
+    }
 }
 
 #[cfg(test)]
