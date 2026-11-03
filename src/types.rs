@@ -13,11 +13,30 @@ pub mod vec3 {
             Vec3::origin()
         }
     }
+    
+    pub trait Color {
+        fn rgb(&self) -> image::Rgb<u8>;
+        fn new(x: f64, y: f64, z: f64) -> Vec3;
+    }
+
+    impl Color for Vec3 {
+        fn rgb(&self) -> image::Rgb<u8> {
+            let ir = (255.999 * self.x) as u8;
+            let ig = (255.999 * self.y) as u8;
+            let ib = (255.999 * self.z) as u8;
+            image::Rgb([ir, ig, ib])
+        }
+        
+        fn new(x: f64, y: f64, z: f64) -> Vec3 {
+            Vec3 {x, y, z}
+        }
+    }
 
     impl Vec3 {
         pub fn origin() -> Vec3 {
             Vec3 {x: 0.0, y: 0.0, z: 0.0}
         }
+
         pub fn new(x: f64, y: f64, z: f64) -> Vec3 {
             Vec3 {x, y, z}
         }
