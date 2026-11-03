@@ -3,18 +3,24 @@ use crate::types::ray::Ray;
 use image::{Rgb, RgbImage};
 mod types;
 
-fn hit_sphere(center: Vec3, radius: f64, r: &Ray) -> bool {
+fn hit_sphere(center: Vec3, radius: f64, r: &Ray) -> f64 {
     let oc = center - r.orig();
-    let a = r.dir().dot(r.dir());
-    let b = -2.0 * r.dir().dot(oc);
-    let c = oc.dot(oc) - radius * radius;
-    let discriminant = b*b - 4.0*a*c;
-    discriminant >= 0.0
+    let a = r.dir().length_squared();
+    let h = r.dir().dot(oc);
+    let c = oc.length_squared() - radius * radius;
+    let discriminant = h*h - a*c;
+    if discriminant < 0.0 {
+       -1.0 
+    } else {
+        (h - discriminant.sqrt()) / a
+    }
 }
 
 fn ray_color(r: Ray) -> Vec3 {
-    if hit_sphere(Vec3::new(0.0, 0.0, -1.0), 0.5, &r) {
-        return <Vec3 as Color>::new(1.0, 0.0, 0.0);
+    let t = hit_sphere(Vec3::new(0.0, 0.0, -1.0), 0.5, &r);
+    if t > 0.0 {
+        let normal = (r.at(t) - Vec3::new(0.0, 0.0, -1.0)).unit_vec();
+        return 0.5*(normal+Vec3::new(1.0, 1.0, 1.0));
     }
     let unit_dir = r.dir().unit_vec();
     let a = 0.5*(unit_dir.y + 1.0);
