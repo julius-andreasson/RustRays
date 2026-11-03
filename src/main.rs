@@ -1,4 +1,5 @@
 use image::{Rgb, RgbImage};
+mod types;
 
 fn main() {
     println!("Execution started.");
