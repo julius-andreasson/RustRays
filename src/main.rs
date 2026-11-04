@@ -1,6 +1,7 @@
 use crate::types::util;
 use crate::types::vec3::{Vec3, Color};
 use crate::types::ray::Ray;
+use crate::types::interval::Interval;
 use crate::hittables::hittables::{HitRecord, Hittable, HittableList, Sphere};
 use image::{Rgb, RgbImage};
 mod types;
@@ -8,13 +9,10 @@ mod hittables;
 
 fn ray_color(r: Ray, scene: &HittableList) -> Vec3 {
     let mut rec = HitRecord::new();
-    if scene.hit(&r, 0.0, util::INF, &mut rec) {
+    if scene.hit(&r, Interval::new(0.0, util::INF), &mut rec) {
         return 0.5 * (rec.normal + Vec3::new(1.0, 1.0, 1.0));
     }
-    // let t = hit_sphere(Vec3::new(0.0, 0.0, -1.0), 0.5, &r);
-    // if t > 0.0 {
-        // let normal = (r.at(t) - Vec3::new(0.0, 0.0, -1.0)).unit_vec();
-    // }
+
     let unit_dir = r.dir().unit_vec();
     let a = 0.5*(unit_dir.y + 1.0);
     let res =

@@ -1,6 +1,7 @@
 pub mod hittables {
     use std::rc::Rc;
 
+use crate::types::interval::Interval;
 use crate::types::vec3::Vec3;
     use crate::types::ray::Ray;
 
@@ -34,7 +35,7 @@ use crate::types::vec3::Vec3;
     }
 
     pub trait Hittable {
-        fn hit(&self, r: &Ray, ray_tmin: f64, ray_tmax: f64, rec: &mut HitRecord) -> bool;
+        fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool;
     }
 
     // HittableList
@@ -59,13 +60,13 @@ use crate::types::vec3::Vec3;
     }
 
     impl<'a> Hittable for HittableList<'a> {
-        fn hit(&self, r: &Ray, ray_tmin: f64, ray_tmax: f64, rec: &mut HitRecord) -> bool {
+        fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool {
             let temp_rec: &mut HitRecord = &mut rec.clone();
             let mut hit_anything= false;
-            let mut closest_so_far = ray_tmax;
+            let mut closest_so_far = ray_t.max;
 
             for object in self.objects.iter() {
-                if object.hit(r, ray_tmin, closest_so_far, temp_rec) {
+                if object.hit(r, Interval::new(ray_t.min, closest_so_far), temp_rec) {
                     hit_anything = true;
                     closest_so_far = temp_rec.t;
                     rec.set_to(*temp_rec); // Hmm
@@ -88,7 +89,7 @@ use crate::types::vec3::Vec3;
     }
 
     impl Hittable for Sphere {
-        fn hit(&self, r: &Ray, ray_tmin: f64, ray_tmax: f64, rec: &mut HitRecord) -> bool {
+        fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool {
             let oc = self.center - r.orig();
             let a = r.dir().length_squared();
             let h = r.dir().dot(oc);
@@ -102,9 +103,9 @@ use crate::types::vec3::Vec3;
 
             // Find the nearest root that lies in the acceptable range $
             let mut root = (h - sqrtd) / a;
-            if (root <= ray_tmin || ray_tmax <= root) {
+            if !ray_t.contains(root) {
                 root = (h + sqrtd) / a;
-                if (root <= ray_tmin || ray_tmax <= root) {
+                if !ray_t.contains(root) {
                     return false;
                 }
             }
