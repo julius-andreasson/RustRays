@@ -1,3 +1,14 @@
+pub mod util {
+    // Constants
+    pub const INF: f64 = f64::INFINITY;
+    pub const PI: f64 = std::f64::consts::PI;
+
+    // Utility Functions
+    pub fn degrees_to_radians(degrees: f64) -> f64 {
+        return degrees * PI / 180.0;
+    }
+}
+
 pub mod ray {
     use crate::types::vec3::Vec3;
 
