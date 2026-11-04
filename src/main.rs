@@ -1,27 +1,20 @@
+use crate::types::util;
 use crate::types::vec3::{Vec3, Color};
 use crate::types::ray::Ray;
+use crate::hittables::hittables::{HitRecord, Hittable, HittableList, Sphere};
 use image::{Rgb, RgbImage};
 mod types;
+mod hittables;
 
-fn hit_sphere(center: Vec3, radius: f64, r: &Ray) -> f64 {
-    let oc = center - r.orig();
-    let a = r.dir().length_squared();
-    let h = r.dir().dot(oc);
-    let c = oc.length_squared() - radius * radius;
-    let discriminant = h*h - a*c;
-    if discriminant < 0.0 {
-       -1.0 
-    } else {
-        (h - discriminant.sqrt()) / a
+fn ray_color(r: Ray, scene: &HittableList) -> Vec3 {
+    let mut rec = HitRecord::new();
+    if scene.hit(&r, 0.0, util::INF, &mut rec) {
+        return 0.5 * (rec.normal + Vec3::new(1.0, 1.0, 1.0));
     }
-}
-
-fn ray_color(r: Ray) -> Vec3 {
-    let t = hit_sphere(Vec3::new(0.0, 0.0, -1.0), 0.5, &r);
-    if t > 0.0 {
-        let normal = (r.at(t) - Vec3::new(0.0, 0.0, -1.0)).unit_vec();
-        return 0.5*(normal+Vec3::new(1.0, 1.0, 1.0));
-    }
+    // let t = hit_sphere(Vec3::new(0.0, 0.0, -1.0), 0.5, &r);
+    // if t > 0.0 {
+        // let normal = (r.at(t) - Vec3::new(0.0, 0.0, -1.0)).unit_vec();
+    // }
     let unit_dir = r.dir().unit_vec();
     let a = 0.5*(unit_dir.y + 1.0);
     let res =
@@ -56,6 +49,13 @@ fn main() {
     let viewport_upper_left = camera_center - Vec3::new(0.0, 0.0, focal_length) - viewport_u*0.5 - viewport_v*0.5;
     let pixel00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
 
+    // Scene
+    let mut scene = HittableList::new();
+    let s1 = Sphere::new(Vec3::new(0.0, 0.0, -1.0), 0.5);
+    let s2 = Sphere::new(Vec3::new(0.0, -100.5, -1.0), 100.0);
+    scene.add(&s1);
+    scene.add(&s2);
+
     // Render
     for x in 0..image_width {
         // if x % ten_percent == 0 {println!("In progress: {}% done", {100*x/image_width});}
@@ -65,7 +65,7 @@ fn main() {
             let ray_dir = pixel_center - camera_center;
             let r: Ray = Ray::new(camera_center, ray_dir);
 
-            let color = ray_color(r);
+            let color = ray_color(r, &scene);
 
             let pixel: Rgb<u8> = color.rgb();
             img.put_pixel(x, y, pixel);
