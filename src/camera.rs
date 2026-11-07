@@ -1,11 +1,11 @@
 pub mod camera {
     use image::{Rgb, RgbImage};
 
-    use crate::types::util::{self, rnd};
+    use crate::types::util::{self, degrees_to_radians, rnd};
     use crate::types::vec3::{Vec3, Color};
     use crate::types::ray::Ray;
     use crate::types::interval::Interval;
-    use crate::hittables::hittables::{HitRecord, Hittable, HittableList};
+    use crate::hittables::hittables::{self, HitRecord, Hittable, HittableList, Material};
 
     pub struct Camera {
         // pub aspect_ratio: f64, // Ratio of img width over height
@@ -16,11 +16,11 @@ pub mod camera {
         pixel_delta_u: Vec3,
         pixel_delta_v: Vec3,
         samples_per_pixel: u32,
-        max_bounces: i32
+        max_depth: i32
     }
 
     impl Camera {
-        pub fn render(&self, scene: &HittableList) {
+        pub fn render(&self, scene: &HittableList) -> Result<(), image::ImageError> {
             // Image
             // let ten_percent: u32 = self.image_width / 10;
             let mut img: RgbImage = RgbImage::new(self.image_width, self.image_height);
@@ -33,7 +33,7 @@ pub mod camera {
                     let mut pixel_color = Vec3::new(0.0, 0.0, 0.0);
                     for _sample in 0..self.samples_per_pixel {
                         let r = self.get_ray(x, y);
-                        pixel_color += Camera::ray_color(r, self.max_bounces, &scene);
+                        pixel_color += Camera::ray_color(r, self.max_depth, &scene);
                     }
                     let color = pixel_color / self.samples_per_pixel as f64;
 
@@ -41,21 +41,21 @@ pub mod camera {
                     img.put_pixel(x, y, pixel);
             } 
             }
-            let res = img.save("output/test.jpg");
-            if res.is_err() {
-                println!("Error: {:#?}", res);
-            } else {
-                println!("Execution finished.");
-            }
+            return img.save("output/test.jpg");
         }
 
-        fn ray_color(r: Ray, remaining_bounces: i32, scene: &HittableList) -> Vec3 {
-            if remaining_bounces <= 0 { return Vec3::new(0.0, 0.0, 0.0)};
+        fn ray_color(r: Ray, remaining_depth: i32, scene: &HittableList) -> Vec3 {
+            if remaining_depth <= 0 { return Vec3::new(0.0, 0.0, 0.0)};
             
             let mut rec = HitRecord::new();
             if scene.hit(&r, Interval::new(0.001, util::INF), &mut rec) {
-                let dir = Vec3::random_on_hemisphere(rec.normal) + Vec3::random_unit_vec();
-                return 0.5 * Camera::ray_color(Ray::new(rec.p, dir), remaining_bounces - 1, &scene); //(rec.normal + Vec3::new(1.0, 1.0, 1.0));
+                let mut scattered = Ray::default();
+                let mut attenuation = Vec3::default();
+                if hittables::scatter(&r, &rec, &mut attenuation, &mut scattered, rec.mat) {
+                    return attenuation * Camera::ray_color(scattered, remaining_depth - 1, &scene);
+                }
+                return Vec3::default();
+
             } else {
                 let unit_dir = r.dir().unit_vec();
                 let a = 0.5*(unit_dir.y + 1.0);
@@ -64,31 +64,41 @@ pub mod camera {
                         + a*<Vec3 as Color>::new(0.5, 0.7, 1.0);
                 return res;
             }
-
         }
 
-        pub fn new(image_width: u32, image_height: u32, samples_per_pixel: u32, max_bounces: i32) -> Self {
+        pub fn new(image_width: u32, image_height: u32, samples_per_pixel: u32, max_depth: i32) -> Self {
             // let image_height = (image_width as f64 / aspect_ratio) as u32;
 
             // Camera
-            let center = Vec3::new(0.0, 0.0, 0.0);
-            let focal_length = 1.0;
-            let viewport_height = 2.0;
+            let vfov = 90.0;
+            let lookfrom = Vec3::new(-2.0, 2.0, 1.0);
+            let lookat = Vec3::new(0.0, 0.0, -1.0);
+            let vup = Vec3::new(0.0, 1.0, 0.0);
+
+            let center = lookfrom;
+            let focal_length = (lookfrom - lookat).length();
+            let theta = degrees_to_radians(vfov);
+            let h = (theta/2.0).tan();
+            let viewport_height = 2.0 * h * focal_length;
             let viewport_width = viewport_height * image_width as f64 / image_height as f64;
             
+            let w = (lookfrom - lookat).unit_vec();
+            let u = vup.cross(w).unit_vec();
+            let v = w.cross(u);
+            
             // Calculate the vectors across the horizontal and down the vertical viewport edges. $
-            let viewport_u = Vec3::new(viewport_width, 0.0, 0.0);
-            let viewport_v = Vec3::new(0.0, -viewport_height, 0.0);
+            let viewport_u = viewport_width * u;
+            let viewport_v = viewport_height * -v;
             
             // Calculate the horizontal and vertical delta vectors from pixel to pixel. $
             let pixel_delta_u = viewport_u / image_width as f64;
             let pixel_delta_v = viewport_v / image_height as f64;
             
             // Calculate the location of the upper left pixel. $
-            let viewport_upper_left = center - Vec3::new(0.0, 0.0, focal_length) - viewport_u*0.5 - viewport_v*0.5;
+            let viewport_upper_left = center - (focal_length * w) - viewport_u*0.5 - viewport_v*0.5;
             let pixel00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
 
-            Camera { image_width, image_height, center, pixel00_loc, pixel_delta_u, pixel_delta_v, samples_per_pixel, max_bounces }
+            Camera { image_width, image_height, center, pixel00_loc, pixel_delta_u, pixel_delta_v, samples_per_pixel, max_depth }
         }
         
         fn get_ray(&self, x: u32, y: u32) -> Ray {

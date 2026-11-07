@@ -72,7 +72,7 @@ pub mod interval {
 pub mod ray {
     use crate::types::vec3::Vec3;
 
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, Default)]
     pub struct Ray {
         orig: Vec3,
         dir: Vec3
@@ -104,17 +104,11 @@ pub mod vec3 {
 
     use crate::types::{interval::Interval, util::{rnd, rnd_range}};
 
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug, Clone, Copy, Default)]
     pub struct Vec3 {
         pub x: f64,
         pub y: f64,
         pub z: f64,
-    }
-
-    impl Default for Vec3 {
-        fn default() -> Self {
-            Vec3::origin()
-        }
     }
     
     pub trait Color {
@@ -173,6 +167,11 @@ pub mod vec3 {
             self.x.abs()*self.x.abs() + self.y.abs()*self.y.abs() + self.z.abs()*self.z.abs()
         }
 
+        pub fn near_zero(&self) -> bool {
+            let s = 1e-8;
+            return self.x.abs() < s && self.y.abs() < s && self.z.abs() < s;
+        }
+
         pub fn unit_vec(self) -> Vec3 {
             // Compute length first, to avoid borrowing to both division function and length function simultaneously.
             // ?? Is there a recommended way of doing this?
@@ -197,6 +196,17 @@ pub mod vec3 {
             } else {
                 return -on_unit_sphere;
             }
+        }
+
+        pub fn reflect(v: Vec3, n: Vec3) -> Vec3 {
+            v - 2.0*v.dot(n)*n
+        }
+
+        pub fn refract(uv: Vec3, n: Vec3, etai_over_etat: f64) -> Vec3 {
+            let cos_theta = (-uv).dot(n).min(1.0);
+            let r_out_perp = etai_over_etat * (uv + cos_theta * n);
+            let r_out_parallel = -((1.0 - r_out_perp.length_squared()).abs().sqrt())*n;
+            return r_out_perp + r_out_parallel;
         }
 
         pub fn dot(&self, rhs: Vec3) -> f64 {
