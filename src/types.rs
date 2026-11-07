@@ -1,4 +1,6 @@
 pub mod util {
+    use rand::RngExt;
+
     // Constants
     pub const INF: f64 = f64::INFINITY;
     pub const PI: f64 = std::f64::consts::PI;
@@ -6,6 +8,17 @@ pub mod util {
     // Utility Functions
     pub fn degrees_to_radians(degrees: f64) -> f64 {
         return degrees * PI / 180.0;
+    }
+
+    pub fn rnd() -> f64 {
+        // Is it a bad idea to create a new rand::rng each time? Probably!
+        // Docs say that using a local bind avoids repeated init-checks.
+        // ?? Perhaps I can move the initialization out, and pass a local rng var?
+        rand::rng().random::<f64>()
+    }
+
+    pub fn rnd_range(min: f64, max: f64) -> f64 {
+        min + (max-min)*rnd()
     }
 }
 
@@ -40,6 +53,16 @@ pub mod interval {
         
         pub fn surrounds(&self, x: f64) -> bool {
             self.min < x && x < self.max
+        }
+
+        pub fn clamp(&self, x: f64) -> f64 {
+            if x < self.min {
+                return self.min
+            } else if x > self.max {
+                return self.max
+            } else {
+                return x
+            }
         }
     }
 }
@@ -76,6 +99,8 @@ pub mod ray {
 pub mod vec3 {
     use std::ops;
 
+use crate::types::interval::Interval;
+
     #[derive(Debug, Clone, Copy)]
     pub struct Vec3 {
         pub x: f64,
@@ -96,9 +121,10 @@ pub mod vec3 {
 
     impl Color for Vec3 {
         fn rgb(&self) -> image::Rgb<u8> {
-            let ir = (255.999 * self.x) as u8;
-            let ig = (255.999 * self.y) as u8;
-            let ib = (255.999 * self.z) as u8;
+            let intensity = Interval::new(0.0, 0.999); // ?? Could I save this value so I wouldn't need to reinitialize it for each pixel?
+            let ir = (256.0 * intensity.clamp(self.x)) as u8;
+            let ig = (256.0 * intensity.clamp(self.y)) as u8;
+            let ib = (256.0 * intensity.clamp(self.z)) as u8;
             image::Rgb([ir, ig, ib])
         }
         
@@ -126,7 +152,7 @@ pub mod vec3 {
 
         pub fn unit_vec(self) -> Vec3 {
             // Compute length first, to avoid borrowing to both division function and length function simultaneously.
-            // Is there a recommended way of doing this?
+            // ?? Is there a recommended way of doing this?
             let len = self.length();
             self / len
         }
