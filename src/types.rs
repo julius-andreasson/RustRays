@@ -245,8 +245,8 @@ pub mod vec3 {
 
 #[cfg(test)]
 mod ray_tests {
-    use crate::Ray;
-    use crate::Vec3;
+    use crate::types::ray::Ray;
+    use crate::types::vec3::Vec3;
 
     #[test]
     fn test_orig() {
