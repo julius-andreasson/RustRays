@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 pub mod util {
     use rand::RngExt;
 
@@ -22,6 +23,7 @@ pub mod util {
     }
 }
 
+#[allow(dead_code)]
 pub mod interval {
     use crate::types::util;
 
@@ -96,10 +98,11 @@ pub mod ray {
     }
 }
 
+#[allow(dead_code)]
 pub mod vec3 {
     use std::ops;
 
-use crate::types::interval::Interval;
+    use crate::types::{interval::Interval, util::{rnd, rnd_range}};
 
     #[derive(Debug, Clone, Copy)]
     pub struct Vec3 {
@@ -119,15 +122,27 @@ use crate::types::interval::Interval;
         fn new(x: f64, y: f64, z: f64) -> Vec3;
     }
 
+    fn linear_to_gamma(linear_component: f64) -> f64 {
+        if linear_component > 0.0 {
+            return linear_component.sqrt();
+        } else {
+            return 0.0;
+        }
+    }
+
     impl Color for Vec3 {
         fn rgb(&self) -> image::Rgb<u8> {
+            let r = linear_to_gamma(self.x);
+            let g = linear_to_gamma(self.y);
+            let b = linear_to_gamma(self.z);
+
             let intensity = Interval::new(0.0, 0.999); // ?? Could I save this value so I wouldn't need to reinitialize it for each pixel?
-            let ir = (256.0 * intensity.clamp(self.x)) as u8;
-            let ig = (256.0 * intensity.clamp(self.y)) as u8;
-            let ib = (256.0 * intensity.clamp(self.z)) as u8;
-            image::Rgb([ir, ig, ib])
+            let rbyte = (256.0 * intensity.clamp(r)) as u8;
+            let gbyte = (256.0 * intensity.clamp(g)) as u8;
+            let bbyte = (256.0 * intensity.clamp(b)) as u8;
+            image::Rgb([rbyte, gbyte, bbyte])
         }
-        
+ 
         fn new(x: f64, y: f64, z: f64) -> Vec3 {
             Vec3 {x, y, z}
         }
@@ -140,6 +155,14 @@ use crate::types::interval::Interval;
 
         pub fn new(x: f64, y: f64, z: f64) -> Vec3 {
             Vec3 {x, y, z}
+        }
+
+        fn rnd() -> Vec3 {
+            Vec3::new(rnd(), rnd(), rnd())
+        }
+
+        fn rnd_range(min: f64, max:f64) -> Vec3 {
+            Vec3::new(rnd_range(min, max), rnd_range(min, max), rnd_range(min, max))
         }
 
         pub fn length(&self) -> f64 {
@@ -155,6 +178,25 @@ use crate::types::interval::Interval;
             // ?? Is there a recommended way of doing this?
             let len = self.length();
             self / len
+        }
+
+        pub fn random_unit_vec() -> Vec3 {
+            loop {
+                let p = Vec3::rnd_range(-1.0, 1.0);
+                let lensq = p.length_squared();
+                if 1e-160 < lensq && lensq <= 1.0 { // hmm interesting solution. See 'Listing 49' in book. Would need to find the corresponding number for float in order to use that. @float
+                    return p / lensq.sqrt();
+                }
+            }
+        }
+
+        pub fn random_on_hemisphere(normal: Vec3) -> Vec3 {
+            let on_unit_sphere = Vec3::random_unit_vec();
+            if on_unit_sphere.dot(normal) > 0.0 { // Is in the same hemisphere as the normal $
+                return on_unit_sphere;
+            } else {
+                return -on_unit_sphere;
+            }
         }
 
         pub fn dot(&self, rhs: Vec3) -> f64 {

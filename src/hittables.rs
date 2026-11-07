@@ -1,8 +1,9 @@
+#[allow(dead_code)]
 pub mod hittables {
     use std::rc::Rc;
 
-use crate::types::interval::Interval;
-use crate::types::vec3::Vec3;
+    use crate::types::interval::Interval;
+    use crate::types::vec3::Vec3;
     use crate::types::ray::Ray;
 
     #[derive(Clone, Copy)]

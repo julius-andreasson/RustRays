@@ -15,6 +15,6 @@ fn main() {
     scene.add(&s1);
     scene.add(&s2);
 
-    let cam = Camera::new(100, 100, 10);
+    let cam = Camera::new(300, 200, 10, 10);
     cam.render(&scene);
 }

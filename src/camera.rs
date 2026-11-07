@@ -15,7 +15,8 @@ pub mod camera {
         pixel00_loc: Vec3,
         pixel_delta_u: Vec3,
         pixel_delta_v: Vec3,
-        samples_per_pixel: u32
+        samples_per_pixel: u32,
+        max_bounces: i32
     }
 
     impl Camera {
@@ -32,7 +33,7 @@ pub mod camera {
                     let mut pixel_color = Vec3::new(0.0, 0.0, 0.0);
                     for _sample in 0..self.samples_per_pixel {
                         let r = self.get_ray(x, y);
-                        pixel_color += Camera::ray_color(r, &scene);
+                        pixel_color += Camera::ray_color(r, self.max_bounces, &scene);
                     }
                     let color = pixel_color / self.samples_per_pixel as f64;
 
@@ -48,21 +49,25 @@ pub mod camera {
             }
         }
 
-        fn ray_color(r: Ray, scene: &HittableList) -> Vec3 {
+        fn ray_color(r: Ray, remaining_bounces: i32, scene: &HittableList) -> Vec3 {
+            if remaining_bounces <= 0 { return Vec3::new(0.0, 0.0, 0.0)};
+            
             let mut rec = HitRecord::new();
-            if scene.hit(&r, Interval::new(0.0, util::INF), &mut rec) {
-                return 0.5 * (rec.normal + Vec3::new(1.0, 1.0, 1.0));
+            if scene.hit(&r, Interval::new(0.001, util::INF), &mut rec) {
+                let dir = Vec3::random_on_hemisphere(rec.normal) + Vec3::random_unit_vec();
+                return 0.5 * Camera::ray_color(Ray::new(rec.p, dir), remaining_bounces - 1, &scene); //(rec.normal + Vec3::new(1.0, 1.0, 1.0));
+            } else {
+                let unit_dir = r.dir().unit_vec();
+                let a = 0.5*(unit_dir.y + 1.0);
+                let res =
+                    (1.0-a) * <Vec3 as Color>::new(1.0, 1.0, 1.0)
+                        + a*<Vec3 as Color>::new(0.5, 0.7, 1.0);
+                return res;
             }
 
-            let unit_dir = r.dir().unit_vec();
-            let a = 0.5*(unit_dir.y + 1.0);
-            let res =
-                (1.0-a) * <Vec3 as Color>::new(1.0, 1.0, 1.0)
-                    + a*<Vec3 as Color>::new(0.5, 0.7, 1.0);
-            res
         }
 
-        pub fn new(image_width: u32, image_height: u32, samples_per_pixel: u32) -> Self {
+        pub fn new(image_width: u32, image_height: u32, samples_per_pixel: u32, max_bounces: i32) -> Self {
             // let image_height = (image_width as f64 / aspect_ratio) as u32;
 
             // Camera
@@ -83,7 +88,7 @@ pub mod camera {
             let viewport_upper_left = center - Vec3::new(0.0, 0.0, focal_length) - viewport_u*0.5 - viewport_v*0.5;
             let pixel00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
 
-            Camera { image_width, image_height, center, pixel00_loc, pixel_delta_u, pixel_delta_v, samples_per_pixel }
+            Camera { image_width, image_height, center, pixel00_loc, pixel_delta_u, pixel_delta_v, samples_per_pixel, max_bounces }
         }
         
         fn get_ray(&self, x: u32, y: u32) -> Ray {
