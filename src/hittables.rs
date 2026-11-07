@@ -1,10 +1,9 @@
-#[allow(dead_code)]
 pub mod hittables {
     use std::rc::Rc;
 
     use crate::types::interval::Interval;
     use crate::types::util;
-use crate::types::vec3::Vec3;
+    use crate::types::vec3::Vec3;
     use crate::types::ray::Ray;
 
     #[derive(Clone, Copy)]
@@ -35,13 +34,13 @@ use crate::types::vec3::Vec3;
     }
 
     // HittableList
-    pub struct HittableList <'a> {
-        objects: Vec<Rc<&'a dyn Hittable>>
+    pub struct HittableList {
+        objects: Vec<Rc<Box<dyn Hittable>>>
     }
     
-    impl<'a> HittableList<'a> {
+    impl HittableList {
         pub fn new() -> Self {
-            let objects: Vec<Rc<&'a dyn Hittable>> = vec![];
+            let objects: Vec<Rc<Box<dyn Hittable>>> = vec![];
             Self { objects }
         }
 
@@ -49,20 +48,20 @@ use crate::types::vec3::Vec3;
             self.objects.clear();
         }
 
-        pub fn add(&mut self, object: &'a dyn Hittable) {
-            let o: Rc<&'a dyn Hittable> = Rc::new(object);
+        pub fn add(&mut self, object: Box<dyn Hittable>) {
+            let o: Rc<Box<dyn Hittable>> = Rc::new(object);
             // let o = Rc::new(object);
             self.objects.push(o); // Inline variable later
         }
     }
 
-    impl<'a> Hittable for HittableList<'a> {
+    impl Hittable for HittableList {
         fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool {
             let temp_rec: &mut HitRecord = &mut rec.clone();
             let mut hit_anything= false;
             let mut closest_so_far = ray_t.max;
 
-            for object in self.objects.iter() {
+            for object in self.objects.iter() { // HMM
                 if object.hit(r, Interval::new(ray_t.min, closest_so_far), temp_rec) {
                     hit_anything = true;
                     closest_so_far = temp_rec.t;

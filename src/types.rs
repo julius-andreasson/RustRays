@@ -1,4 +1,3 @@
-#[allow(dead_code)]
 pub mod util {
     use rand::RngExt;
 
@@ -23,7 +22,6 @@ pub mod util {
     }
 }
 
-#[allow(dead_code)]
 pub mod interval {
     use crate::types::util;
 
@@ -98,7 +96,6 @@ pub mod ray {
     }
 }
 
-#[allow(dead_code)]
 pub mod vec3 {
     use std::ops;
 
@@ -151,11 +148,11 @@ pub mod vec3 {
             Vec3 {x, y, z}
         }
 
-        fn rnd() -> Vec3 {
+        pub fn rnd() -> Vec3 {
             Vec3::new(rnd(), rnd(), rnd())
         }
 
-        fn rnd_range(min: f64, max:f64) -> Vec3 {
+        pub fn rnd_range(min: f64, max:f64) -> Vec3 {
             Vec3::new(rnd_range(min, max), rnd_range(min, max), rnd_range(min, max))
         }
 
@@ -177,6 +174,16 @@ pub mod vec3 {
             // ?? Is there a recommended way of doing this?
             let len = self.length();
             self / len
+        }
+
+        pub fn random_in_unit_disc() -> Vec3 {
+            let mut p: Vec3;
+            loop {
+                p = Vec3::new(rnd_range(-1.0, 1.0), rnd_range(-1.0, 1.0), 0.0);
+                if p.length_squared() < 1.0 {
+                    return p;
+                }
+            }
         }
 
         pub fn random_unit_vec() -> Vec3 {
