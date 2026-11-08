@@ -1,5 +1,7 @@
+use std::time::Instant;
+
 use crate::camera::camera::Camera;
-use crate::types::util::{self, rnd, rnd_range};
+use crate::types::util::{rnd, rnd_range};
 use crate::types::vec3::Vec3;
 use crate::hittables::hittables::{HittableList, Material, Sphere};
 mod types;
@@ -8,6 +10,7 @@ mod camera;
 
 fn main() {
     println!("Building scene...");
+    let time_before = Instant::now();
 
     // Scene
     let mut scene = HittableList::new();
@@ -51,10 +54,10 @@ fn main() {
     let mat3 = Material::Metal { albedo: Vec3::new(0.7, 0.6, 0.5), fuzz: 0.0 };
     scene.add(Box::new(Sphere::new(Vec3::new(4.0, 1.0, 0.0), 1.0, mat3)));
 
-    let cam = Camera::new(1200, 675, 10, 10);
+    // let cam = Camera::new(1200, 675, 10, 10);
     // let cam = Camera::new(1200, 675, 500, 50);
     // let cam = Camera::new(400, 300, 100, 50);
-    // let cam = Camera::new(100, 100, 10, 10);
+    let cam = Camera::new(100, 100, 10, 10);
     println!("Starting render...");
     let res = cam.render(&scene);
     if res.is_err() {
@@ -62,4 +65,6 @@ fn main() {
     } else {
         println!("Execution finished.");
     }
+    let elapsed_time = time_before.elapsed();
+    println!("Total time: {:?}", elapsed_time);
 }
