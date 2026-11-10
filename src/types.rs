@@ -18,7 +18,8 @@ pub mod util {
     }
 
     pub fn rnd_range(min: f64, max: f64) -> f64 {
-        min + (max-min)*rnd()
+        // rand::rng().random_range(min..max)
+        min + (max-min)*rnd() // somehow, this is faster than the built-in range, according to my tests.
     }
 }
 
@@ -70,10 +71,10 @@ pub mod interval {
 pub mod ray {
     use crate::types::vec3::Vec3;
 
-    #[derive(Clone, Copy, Default)]
+    #[derive(Default)]
     pub struct Ray {
-        orig: Vec3,
-        dir: Vec3
+        pub orig: Vec3,
+        pub dir: Vec3
     }
 
     // Should it all be implemented using Clone?
@@ -82,16 +83,8 @@ pub mod ray {
             Ray {orig, dir}
         }
         
-        pub fn orig(&self) -> Vec3 {
-            self.orig.clone()
-        }
-        
-        pub fn dir(&self) -> Vec3 {
-            self.dir.clone()
-        }
-
         pub fn at(&self, c: f64) -> Vec3 {
-            self.orig.clone() + c * self.dir.clone()
+            &self.orig + c * &self.dir
         }
     }
 }
@@ -101,7 +94,7 @@ pub mod vec3 {
 
     use crate::types::{interval::Interval, util::{rnd, rnd_range}};
 
-    #[derive(Debug, Clone, Copy, Default)]
+    #[derive(Debug, Clone, Default)]
     pub struct Vec3 {
         pub x: f64,
         pub y: f64,
@@ -169,7 +162,7 @@ pub mod vec3 {
             return self.x.abs() < s && self.y.abs() < s && self.z.abs() < s;
         }
 
-        pub fn unit_vec(self) -> Vec3 {
+        pub fn unit_vec(&self) -> Vec3 {
             // Compute length first, to avoid borrowing to both division function and length function simultaneously.
             // ?? Is there a recommended way of doing this?
             let len = self.length();
@@ -198,31 +191,31 @@ pub mod vec3 {
 
         pub fn random_on_hemisphere(normal: Vec3) -> Vec3 {
             let on_unit_sphere = Vec3::random_unit_vec();
-            if on_unit_sphere.dot(normal) > 0.0 { // Is in the same hemisphere as the normal $
+            if on_unit_sphere.dot(&normal) > 0.0 { // Is in the same hemisphere as the normal $
                 return on_unit_sphere;
             } else {
                 return -on_unit_sphere;
             }
         }
 
-        pub fn reflect(v: Vec3, n: Vec3) -> Vec3 {
+        pub fn reflect(v: &Vec3, n: &Vec3) -> Vec3 {
             v - 2.0*v.dot(n)*n
         }
 
-        pub fn refract(uv: Vec3, n: Vec3, etai_over_etat: f64) -> Vec3 {
+        pub fn refract(uv: &Vec3, n: &Vec3, etai_over_etat: f64) -> Vec3 {
             let cos_theta = (-uv).dot(n).min(1.0);
             let r_out_perp = etai_over_etat * (uv + cos_theta * n);
             let r_out_parallel = -((1.0 - r_out_perp.length_squared()).abs().sqrt())*n;
             return r_out_perp + r_out_parallel;
         }
 
-        pub fn dot(&self, rhs: Vec3) -> f64 {
+        pub fn dot(&self, rhs: &Vec3) -> f64 {
             self.x * rhs.x + 
             self.y * rhs.y + 
             self.z * rhs.z 
         }
 
-        pub fn cross(&self, rhs: Vec3) -> Vec3 {
+        pub fn cross(&self, rhs: &Vec3) -> Vec3 {
             Vec3::new(
                 self.y*rhs.z - self.z*rhs.y,
                 self.z*rhs.x - self.x*rhs.z,
@@ -238,6 +231,13 @@ pub mod vec3 {
     }
     
     impl ops::Neg for Vec3 {
+        type Output = Vec3;
+
+        fn neg(self) -> Self::Output {
+            self * (-1.0)
+        }
+    }
+    impl ops::Neg for &Vec3 {
         type Output = Vec3;
 
         fn neg(self) -> Self::Output {
@@ -280,11 +280,53 @@ pub mod vec3 {
             Vec3 { x: self.x+rhs.x, y: self.y+rhs.y, z: self.z+rhs.z }
         }
     }
+    impl ops::Add<&Vec3> for Vec3 {
+        type Output = Vec3;
+        
+        fn add(self, rhs: &Vec3) -> Self::Output {
+            Vec3 { x: self.x+rhs.x, y: self.y+rhs.y, z: self.z+rhs.z }
+        }
+    }
+    impl ops::Add<Vec3> for &Vec3 {
+        type Output = Vec3;
+        
+        fn add(self, rhs: Vec3) -> Self::Output {
+            Vec3 { x: self.x+rhs.x, y: self.y+rhs.y, z: self.z+rhs.z }
+        }
+    }
+    impl ops::Add<&Vec3> for &Vec3 {
+        type Output = Vec3;
+        
+        fn add(self, rhs: &Vec3) -> Self::Output {
+            Vec3 { x: self.x+rhs.x, y: self.y+rhs.y, z: self.z+rhs.z }
+        }
+    }
     
     impl ops::Sub<Vec3> for Vec3 {
         type Output = Vec3;
         
         fn sub(self, rhs: Vec3) -> Self::Output {
+            Vec3 { x: self.x-rhs.x, y: self.y-rhs.y, z: self.z-rhs.z }
+        }
+    }
+    impl ops::Sub<&Vec3> for Vec3 {
+        type Output = Vec3;
+        
+        fn sub(self, rhs: &Vec3) -> Self::Output {
+            Vec3 { x: self.x-rhs.x, y: self.y-rhs.y, z: self.z-rhs.z }
+        }
+    }
+    impl ops::Sub<Vec3> for &Vec3 {
+        type Output = Vec3;
+        
+        fn sub(self, rhs: Vec3) -> Self::Output {
+            Vec3 { x: self.x-rhs.x, y: self.y-rhs.y, z: self.z-rhs.z }
+        }
+    }
+    impl ops::Sub<&Vec3> for &Vec3 {
+        type Output = Vec3;
+        
+        fn sub(self, rhs: &Vec3) -> Self::Output {
             Vec3 { x: self.x-rhs.x, y: self.y-rhs.y, z: self.z-rhs.z }
         }
     }
@@ -306,6 +348,13 @@ pub mod vec3 {
             Vec3 { x: self.x*rhs, y: self.y*rhs, z: self.z*rhs }
         }
     }
+    impl ops::Mul<f64> for &Vec3 {
+        type Output = Vec3;
+        
+        fn mul(self, rhs: f64) -> Self::Output {
+            Vec3 { x: self.x*rhs, y: self.y*rhs, z: self.z*rhs }
+        }
+    }
     
     // f64 * Vec3
     impl ops::Mul<Vec3> for f64 {
@@ -316,8 +365,26 @@ pub mod vec3 {
             rhs * self
         }
     }
+    impl ops::Mul<&Vec3> for f64 {
+        type Output = Vec3;
+        
+        fn mul(self, rhs: &Vec3) -> Self::Output {
+            // Just call "Vec3 * f64", which is already implemented.
+            rhs * self
+        }
+    }
 
+    // Vec3 / f64
     impl ops::Div<f64> for Vec3 {
+        type Output =  Vec3;
+
+        fn div(self, rhs: f64) -> Self::Output {
+            // Just invert the f64, and then call "Vec3 * f64".
+            self * (1.0 / rhs)
+        }
+    }
+
+    impl ops::Div<f64> for &Vec3 {
         type Output =  Vec3;
 
         fn div(self, rhs: f64) -> Self::Output {
@@ -339,7 +406,7 @@ mod ray_tests {
         let dir = Vec3 {x: 2.0, y: 1.0, z: 5.0};
         let r = Ray::new(orig, dir);
         let expected = Vec3 {x: 3.0, y: 4.0, z: 0.0};
-        assert_eq!(r.orig(), expected);
+        assert_eq!(r.orig, expected);
     }
 
     #[test]
@@ -348,7 +415,7 @@ mod ray_tests {
         let dir = Vec3 {x: 2.0, y: 1.0, z: 5.0};
         let r = Ray::new(orig, dir);
         let expected = Vec3 {x: 2.0, y: 1.0, z: 5.0};
-        assert_eq!(r.dir(), expected);
+        assert_eq!(r.dir, expected);
     }
 
     #[test]

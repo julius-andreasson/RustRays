@@ -5,7 +5,7 @@ pub mod camera {
     use crate::types::vec3::{Vec3, Color};
     use crate::types::ray::Ray;
     use crate::types::interval::Interval;
-    use crate::hittables::hittables::{self, HitRecord, Hittable, HittableList, Material};
+    use crate::hittables::hittables::{self, HitRecord, Hittable, HittableList};
 
     pub struct Camera {
         // pub aspect_ratio: f64, // Ratio of img width over height
@@ -54,13 +54,14 @@ pub mod camera {
             if scene.hit(&r, Interval::new(0.001, util::INF), &mut rec) {
                 let mut scattered = Ray::default();
                 let mut attenuation = Vec3::default();
-                if hittables::scatter(&r, &rec, &mut attenuation, &mut scattered, rec.mat) {
+                let mat = rec.mat.clone();
+                if hittables::scatter(&r, rec, &mut attenuation, &mut scattered, mat) {
                     return attenuation * Camera::ray_color(scattered, remaining_depth - 1, &scene);
                 }
                 return Vec3::default();
 
             } else {
-                let unit_dir = r.dir().unit_vec();
+                let unit_dir = r.dir.unit_vec();
                 let a = 0.5*(unit_dir.y + 1.0);
                 let res =
                     (1.0-a) * <Vec3 as Color>::new(1.0, 1.0, 1.0)
@@ -79,7 +80,7 @@ pub mod camera {
             let defocus_angle = 0.6;
             let focus_dist = 10.0;
 
-            let center = lookfrom;
+            let center = lookfrom.clone();
             // let focal_length = (lookfrom - lookat).length();
             let theta = degrees_to_radians(vfov);
             let h = (theta/2.0).tan();
@@ -87,20 +88,20 @@ pub mod camera {
             let viewport_width = viewport_height * image_width as f64 / image_height as f64;
             
             let w = (lookfrom - lookat).unit_vec();
-            let u = vup.cross(w).unit_vec();
-            let v = w.cross(u);
+            let u = vup.cross(&w).unit_vec();
+            let v = w.cross(&u);
             
             // Calculate the vectors across the horizontal and down the vertical viewport edges. $
-            let viewport_u = viewport_width * u;
-            let viewport_v = viewport_height * -v;
+            let viewport_u = &u * viewport_width;
+            let viewport_v = -(&v * viewport_height);
             
             // Calculate the horizontal and vertical delta vectors from pixel to pixel. $
-            let pixel_delta_u = viewport_u / image_width as f64;
-            let pixel_delta_v = viewport_v / image_height as f64;
+            let pixel_delta_u = &viewport_u / image_width as f64;
+            let pixel_delta_v = &viewport_v / image_height as f64;
             
             // Calculate the location of the upper left pixel. $
-            let viewport_upper_left = center - (focus_dist * w) - viewport_u*0.5 - viewport_v*0.5;
-            let pixel00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
+            let viewport_upper_left = &center - (focus_dist * w) - viewport_u*0.5 - viewport_v*0.5;
+            let pixel00_loc = viewport_upper_left + 0.5 * (&pixel_delta_u + &pixel_delta_v);
 
             let defocus_radius = focus_dist * degrees_to_radians(defocus_angle / 2.0).tan();
             let defocus_disk_u = u * defocus_radius;
@@ -111,12 +112,12 @@ pub mod camera {
         
         fn get_ray(&self, x: u32, y: u32) -> Ray {
             let offset = sample_square();
-            let pixel_sample = self.pixel00_loc
-                                    + (x as f64 + offset.x) * self.pixel_delta_u
-                                    + (y as f64 + offset.y) * self.pixel_delta_v;
+            let pixel_sample = &self.pixel00_loc
+                                    + (x as f64 + offset.x) * &self.pixel_delta_u
+                                    + (y as f64 + offset.y) * &self.pixel_delta_v;
 
-            let ray_orig = if self.defocus_angle <= 0.0 {self.center} else {self.defocus_disk_sample()};
-            let ray_dir = pixel_sample - ray_orig;
+            let ray_orig = if self.defocus_angle <= 0.0 {self.center.clone()} else {self.defocus_disk_sample()};
+            let ray_dir = pixel_sample - &ray_orig;
             
             let r: Ray = Ray::new(ray_orig, ray_dir);
             r
@@ -124,7 +125,7 @@ pub mod camera {
 
         fn defocus_disk_sample(&self) -> Vec3 {
             let p = Vec3::random_in_unit_disc();
-            let res = self.center + (p.x * self.defocus_disk_u) + (p.y * self.defocus_disk_v);
+            let res = &self.center + (p.x * &self.defocus_disk_u) + (p.y * &self.defocus_disk_v);
             res
         }
     }

@@ -24,8 +24,7 @@ fn main() {
         for b in -11..11 {
             let choose_mat = rnd();
             let center = Vec3::new(a as f64 + 0.9*rnd(), 0.2, b as f64 + 0.9*rnd());
-            if (center - p1).length_squared() > 0.81 {
-    //         if ((center - point3(4, 0.2, 0)).length() > 0.9) {
+            if (&center - &p1).length_squared() > 0.81 {
                 if choose_mat < 0.8 {
                     // diffuse
                     let albedo = Vec3::rnd() * Vec3::rnd();
