@@ -54,9 +54,9 @@ fn main() {
     scene.add(Box::new(Sphere::new(Vec3::new(4.0, 1.0, 0.0), 1.0, mat3)));
 
     // let cam = Camera::new(1200, 675, 10, 10);
-    // let cam = Camera::new(1200, 675, 500, 50);
+    let cam = Camera::new(1200, 675, 100, 50);
     // let cam = Camera::new(400, 300, 100, 50);
-    let cam = Camera::new(100, 100, 10, 10);
+    // let cam = Camera::new(100, 100, 10, 10);
     println!("Starting render...");
     let res = cam.render(&scene);
     if res.is_err() {
