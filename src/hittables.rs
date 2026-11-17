@@ -1,8 +1,12 @@
 pub mod hittables {
-    use std::rc::Rc;
+    use std::cmp::Ordering;
+    use std::sync::Arc;
     use crate::types::interval::Interval;
-    use crate::types::{util, vec3::Vec3};
+    use crate::types::vec3::{Vec3, Axis};
+    use crate::types::util;
     use crate::types::ray::Ray;
+
+    type A = Arc<dyn Hittable + Sync + Send>;
 
     #[derive(Clone)]
     pub struct HitRecord {
@@ -23,7 +27,7 @@ pub mod hittables {
         }
         
         pub fn new() -> Self {
-            Self { p: Vec3::default(), t: 0.0, mat: Material::Lambertian{albedo: Vec3::new(0.5, 0.5, 0.5)}, normal: Vec3::default(), front_face: true }
+            Self { p: Vec3::default(), t: 0.0, mat: Material::Lambertian{albedo: Vec3::new(0.5, 0.5, 0.5), _f: f64::default() }, normal: Vec3::default(), front_face: true }
         }
         
         fn set_to(&mut self, other: &HitRecord) {
@@ -36,39 +40,44 @@ pub mod hittables {
     }
     
     pub trait Hittable {
-        fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool;
+        fn hit(&self, r: &Ray, ray_t: &Interval, rec: &mut HitRecord) -> bool;
+        fn get_bbox(&self) -> &AABB;
     }
 
     // HittableList
+    #[derive(Clone)]
     pub struct HittableList {
-        objects: Vec<Rc<Box<dyn Hittable>>>
+        pub objects: Vec<A>,
+        bbox: AABB,
     }
     
     impl HittableList {
         pub fn new() -> Self {
-            let objects: Vec<Rc<Box<dyn Hittable>>> = vec![];
-            Self { objects }
+            let objects: Vec<A> = vec![];
+            let bbox: AABB = AABB::empty();
+            Self { objects, bbox }
         }
 
         pub fn clear(&mut self) {
             self.objects.clear();
         }
 
-        pub fn add(&mut self, object: Box<dyn Hittable>) {
-            let o: Rc<Box<dyn Hittable>> = Rc::new(object);
-            // let o = Rc::new(object);
-            self.objects.push(o); // Inline variable later
+        pub fn add<T: Hittable + 'static + Sync + Send>(&mut self, object: T) {
+            let bbox: AABB = object.get_bbox().clone();
+            let o: A = Arc::new(object);
+            self.objects.push(o);
+            self.bbox = AABB::from_aabbs(&self.bbox, &bbox);
         }
     }
 
     impl Hittable for HittableList {
-        fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool {
+        fn hit(&self, r: &Ray, ray_t: &Interval, rec: &mut HitRecord) -> bool {
             let temp_rec: &mut HitRecord = &mut rec.clone();
             let mut hit_anything= false;
             let mut closest_so_far = ray_t.max;
 
             for object in self.objects.iter() { // HMM
-                if object.hit(r, Interval::new(ray_t.min, closest_so_far), temp_rec) {
+                if object.hit(r, &Interval::new(ray_t.min, closest_so_far), temp_rec) {
                     hit_anything = true;
                     closest_so_far = temp_rec.t;
                     rec.set_to(&temp_rec);
@@ -78,22 +87,29 @@ pub mod hittables {
 
             hit_anything
         }
+
+        fn get_bbox(&self) -> &AABB {
+            &self.bbox
+        }
     }
 
     // Shapes
     pub struct Sphere {
         center: Vec3,
         radius: f64,
-        mat: Material
+        mat: Material,
+        bbox: AABB
     }
     impl Sphere {
         pub fn new(center: Vec3, radius: f64, mat: Material) -> Self {
-            Self { center: center, radius: radius, mat: mat }
+            let rvec = Vec3::new(radius, radius, radius);
+            let bbox = AABB::from_points(&(&center-&rvec), &(&center+&rvec));
+            Self { center: center, radius: radius, mat: mat, bbox }
         }
     }
 
     impl Hittable for Sphere {
-        fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool {
+        fn hit(&self, r: &Ray, ray_t: &Interval, rec: &mut HitRecord) -> bool {
             let oc = &self.center - &r.orig;
             let a = r.dir.length_squared();
             let h = r.dir.dot(&oc);
@@ -122,18 +138,21 @@ pub mod hittables {
 
             return true;
         }
+        fn get_bbox(&self) -> &AABB {
+            &self.bbox
+        }
     }
 
     #[derive(Clone)]
     pub enum Material {
-        Lambertian{albedo: Vec3},
+        Lambertian{albedo: Vec3, _f: f64},
         Metal{albedo: Vec3, fuzz: f64},
-        Dielectric{refraction_index: f64}
+        Dielectric{_vec3: Vec3, refraction_index: f64}
     }
 
-    pub fn scatter(r_in: &Ray, rec: HitRecord, attenuation: &mut Vec3, scattered: &mut Ray, mat: Material) -> bool {
-        match mat {
-            Material::Lambertian { albedo } => {
+    pub fn scatter(r_in: &Ray, rec: HitRecord, attenuation: &mut Vec3, scattered: &mut Ray) -> bool {
+        match rec.mat {
+            Material::Lambertian { albedo, _f } => {
                 let pre_scatter_dir = &rec.normal + Vec3::random_unit_vec();
                 // Catch degenerate scatter direction $
                 let scatter_dir = if pre_scatter_dir.near_zero() {
@@ -155,7 +174,7 @@ pub mod hittables {
                 *attenuation = albedo;
                 return Vec3::dot(&scattered.dir, &rec.normal) > 0.0;
             },
-            Material::Dielectric { refraction_index } => {
+            Material::Dielectric { _vec3, refraction_index} => {
                 let ri = if rec.front_face {1.0/refraction_index} else {refraction_index};
                 let unit_dir = Vec3::unit_vec(&r_in.dir);
                 
@@ -182,5 +201,162 @@ pub mod hittables {
         let mut r0 = (1.0 - refraction_index) / (1.0 + refraction_index);
         r0 = r0 * r0;
         return r0 + (1.0-r0)*(1.0-cos).powi(5);
+    }
+
+    // AABB (Axis-Aligned Bounding Boxes)
+    #[derive(Clone)]
+    pub struct AABB {
+        x: Interval,
+        y: Interval,
+        z: Interval,
+    }
+
+    impl AABB {
+        pub fn empty() -> AABB {
+            let x = Interval::empty();
+            let y = Interval::empty();
+            let z = Interval::empty();
+            AABB { x, y, z }
+        }
+
+        pub fn universe() -> AABB {
+            let x = Interval::universe();
+            let y = Interval::universe();
+            let z = Interval::universe();
+            AABB { x, y, z }
+        }
+
+        pub fn from_intervals(x: Interval, y: Interval, z: Interval) -> AABB {
+            AABB { x, y, z }
+        }
+        
+        pub fn from_points(a: &Vec3, b: &Vec3) -> AABB {
+            // Treat the two points a and b as extrema for the bounding box, so we don't require a $
+            // particular minimum/maximum coordinate order. $
+            let x = if a.x <= b.x {Interval::new(a.x, b.x)} else {Interval::new(b.x, a.x)};
+            let y = if a.y <= b.y {Interval::new(a.y, b.y)} else {Interval::new(b.y, a.y)};
+            let z = if a.z <= b.z {Interval::new(a.z, b.z)} else {Interval::new(b.z, a.z)};
+            AABB { x, y, z }
+        }
+
+        pub fn from_aabbs(a: &AABB, b: &AABB) -> AABB {
+            let x = Interval::from_intervals(&a.x, &b.x);
+            let y = Interval::from_intervals(&a.y, &b.y);
+            let z = Interval::from_intervals(&a.z, &b.z);
+            AABB { x, y, z }
+        }
+
+        pub fn axis_interval(&self, axis: &Axis) -> Interval {
+            match axis {
+                Axis::X => self.x.clone(),
+                Axis::Y => self.y.clone(),
+                Axis::Z => self.z.clone(),
+            }
+        }
+
+        pub fn hit(&self, r: &Ray, ray_t: &Interval) -> bool {
+            let ray_orig = &r.orig;
+            let ray_dir = &r.dir;
+
+            for axis in &[Axis::X, Axis::Y, Axis::Z] {
+                let ax = self.axis_interval(axis);
+                let adinv = 1.0 / ray_dir.get(axis);
+
+                let t0 = (ax.min - ray_orig.get(axis)) * adinv;
+                let t1 = (ax.max - ray_orig.get(axis)) * adinv;
+
+                let mut min: f64 = ray_t.min;
+                let mut max: f64 = ray_t.max;
+
+                if t0 < t1 {
+                    if t0 > min {min = t0;}
+                    if t1 < max {max = t1;}
+                } else {
+                    if t1 > min {min = t1;}
+                    if t0 < max {max = t0;}
+                }
+
+                if max <= min {return false}
+            }
+
+            return true
+        }
+
+        pub fn longest_axis(&self) -> Axis {
+            // Returns the index of the longest axis of the bounding box. $
+            if self.x.size() > self.y.size() {
+                if self.x.size() > self.z.size() {
+                    return Axis::X
+                } else {
+                    return Axis::Z
+                }
+            } else if self.y.size() > self.z.size() {
+                return Axis::Y
+            } else {
+                return Axis::Z
+            }
+        }
+    }
+
+    pub struct BVHNode {
+        left: A,
+        right: A,
+        bbox: AABB,
+    }
+
+    impl Hittable for BVHNode {
+        fn hit(&self, r: &Ray, ray_t: &Interval, rec: &mut HitRecord) -> bool {
+            if !self.bbox.hit(r, ray_t) {
+                return false;
+            } else {
+                let hit_left = self.left.hit(r, ray_t, rec);
+                let hit_right = self.right.hit(r, &Interval::new(ray_t.min, if hit_left {rec.t} else {ray_t.max}), rec);
+                return hit_left || hit_right;
+            }
+        }
+    
+        fn get_bbox(&self) -> &AABB {
+            &self.bbox
+        }
+
+    }
+
+    impl BVHNode {
+        pub fn new(mut objects: Vec<A>) -> BVHNode {
+            let left: A;
+            let right: A;
+
+            let object_span = objects.len();
+            if object_span == 1 {
+                left = objects.first().unwrap().clone();
+                right = objects.first().unwrap().clone();
+            } else if object_span == 2 {
+                left = objects.first().unwrap().clone();
+                right = objects.last().unwrap().clone();
+            } else {
+                // Build the bounding box of the span of source objects. $
+                let mut bbox: AABB = AABB::empty();
+                for o in objects.iter() {
+                    bbox = AABB::from_aabbs(&bbox, o.get_bbox());
+                }
+
+                let axis: &Axis = &bbox.longest_axis();
+                let comparator = |a: &A, b: &A| {
+                    if a.get_bbox().axis_interval(axis).min < b.get_bbox().axis_interval(axis).min {
+                        Ordering::Less
+                    } else {
+                        Ordering::Greater
+                    }.to_owned().to_owned()
+                };
+
+                objects.sort_by(comparator);
+                let mid = object_span / 2;
+                let (l, r) = objects.split_at_mut(mid);
+                left = Arc::new(BVHNode::new(l.to_vec()));
+                right = Arc::new(BVHNode::new(r.to_vec()));
+            }
+            let bbox = AABB::from_aabbs(left.get_bbox(), right.get_bbox());
+            return BVHNode {left, right, bbox}
+        }
     }
 }

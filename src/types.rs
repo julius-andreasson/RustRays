@@ -1,6 +1,8 @@
 pub mod util {
     use rand::RngExt;
 
+use crate::types::vec3::Axis;
+
     // Constants
     pub const INF: f64 = f64::INFINITY;
     pub const PI: f64 = std::f64::consts::PI;
@@ -26,6 +28,7 @@ pub mod util {
 pub mod interval {
     use crate::types::util;
 
+    #[derive(Clone)]
     pub struct Interval {
         pub min: f64,
         pub max: f64
@@ -35,6 +38,14 @@ pub mod interval {
         pub fn new(min: f64, max: f64) -> Self {
             Self { min, max }
         }
+
+        pub fn from_intervals(a: &Interval, b: &Interval) -> Self {
+            // Create the interval tightly enclosing the two input intervals. $
+            let min = a.min.min(b.min);
+            let max = a.max.max(b.max);
+            Interval { min, max }
+        }
+
 
         pub fn empty() -> Interval {
             Interval::new(util::INF, -util::INF)
@@ -65,6 +76,11 @@ pub mod interval {
                 return x
             }
         }
+
+        pub fn expand(&self, delta: f64) -> Interval {
+            let padding = delta/2.0;
+            Interval::new(self.min - padding, self.max + padding)
+        }
     }
 }
 
@@ -93,6 +109,12 @@ pub mod vec3 {
     use std::ops;
 
     use crate::types::{interval::Interval, util::{rnd, rnd_range}};
+
+    pub enum Axis {
+        X,
+        Y,
+        Z,
+    }
 
     #[derive(Debug, Clone, Default)]
     pub struct Vec3 {
@@ -221,6 +243,14 @@ pub mod vec3 {
                 self.z*rhs.x - self.x*rhs.z,
                 self.x*rhs.y - self.y*rhs.x
             )
+        }
+        
+        pub fn get(&self, axis: &Axis) -> f64 {
+            match axis {
+                Axis::X => self.x,
+                Axis::Y => self.y,
+                Axis::Z => self.z,
+            }
         }
     }
 

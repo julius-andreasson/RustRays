@@ -1,11 +1,14 @@
 pub mod camera {
     use image::{Rgb, RgbImage};
+    use rayon::iter::{IntoParallelIterator, ParallelIterator};
+    use rayon::{self};
+    use rayon::prelude::*;
 
     use crate::types::util::{self, degrees_to_radians, rnd};
     use crate::types::vec3::{Vec3, Color};
     use crate::types::ray::Ray;
     use crate::types::interval::Interval;
-    use crate::hittables::hittables::{self, HitRecord, Hittable, HittableList};
+    use crate::hittables::hittables::{self, BVHNode, HitRecord, Hittable, HittableList};
 
     pub struct Camera {
         // pub aspect_ratio: f64, // Ratio of img width over height
@@ -23,39 +26,49 @@ pub mod camera {
     }
 
     impl Camera {
-        pub fn render(&self, scene: &HittableList) -> Result<(), image::ImageError> {
+        fn f_put(&self, x: u32, y: u32, scene: &BVHNode) -> (u32, u32, Rgb<u8>) {
+            let mut pixel_color = Vec3::new(0.0, 0.0, 0.0);
+            for _sample in 0..self.samples_per_pixel {
+                let r = self.get_ray(x, y);
+                pixel_color += Camera::ray_color(r, self.max_depth, &scene);
+            }
+            let color = pixel_color / self.samples_per_pixel as f64;
+
+            let pixel: Rgb<u8> = color.rgb();
+            // img.put_pixel(x, y, pixel);
+            return (x, y, pixel);
+        }
+
+        pub fn render(&self, scene: &BVHNode) -> Result<(), image::ImageError> {
             // Image
             let ten_percent: u32 = self.image_width / 10;
             let mut img: RgbImage = RgbImage::new(self.image_width, self.image_height);
 
             // Render
-            for x in 0..self.image_width {
+            let x_arr = 0..self.image_width;
+            for x in x_arr {
                 if x % ten_percent == 0 {println!("In progress: {}% done", {100*x/self.image_width});}
-                for y in 0..self.image_height {
 
-                    let mut pixel_color = Vec3::new(0.0, 0.0, 0.0);
-                    for _sample in 0..self.samples_per_pixel {
-                        let r = self.get_ray(x, y);
-                        pixel_color += Camera::ray_color(r, self.max_depth, &scene);
-                    }
-                    let color = pixel_color / self.samples_per_pixel as f64;
-
-                    let pixel: Rgb<u8> = color.rgb();
-                    img.put_pixel(x, y, pixel);
-            } 
+                let y_arr = 0..self.image_height;
+                
+                // Use Parallel Iterator to utilize multiple threads.
+                let par_iter = y_arr.into_par_iter().map(|y| self.f_put(x, y, &scene));
+                let res: Vec<(u32, u32, Rgb<u8>)> = par_iter.collect();
+                for (ix, iy, px) in res {
+                    img.put_pixel(ix, iy, px);
+                }
             }
             return img.save("output/test.jpg");
         }
 
-        fn ray_color(r: Ray, remaining_depth: i32, scene: &HittableList) -> Vec3 {
+        fn ray_color(r: Ray, remaining_depth: i32, scene: &BVHNode) -> Vec3 {
             if remaining_depth <= 0 { return Vec3::new(0.0, 0.0, 0.0)};
             
             let mut rec = HitRecord::new();
-            if scene.hit(&r, Interval::new(0.001, util::INF), &mut rec) {
+            if scene.hit(&r, &Interval::new(0.001, util::INF), &mut rec) {
                 let mut scattered = Ray::default();
                 let mut attenuation = Vec3::default();
-                let mat = rec.mat.clone();
-                if hittables::scatter(&r, rec, &mut attenuation, &mut scattered, mat) {
+                if hittables::scatter(&r, rec, &mut attenuation, &mut scattered) {
                     return attenuation * Camera::ray_color(scattered, remaining_depth - 1, &scene);
                 }
                 return Vec3::default();
@@ -81,7 +94,6 @@ pub mod camera {
             let focus_dist = 10.0;
 
             let center = lookfrom.clone();
-            // let focal_length = (lookfrom - lookat).length();
             let theta = degrees_to_radians(vfov);
             let h = (theta/2.0).tan();
             let viewport_height = 2.0 * h * focus_dist;
@@ -129,7 +141,7 @@ pub mod camera {
             res
         }
     }
-    
+     
     fn sample_square() -> Vec3 {
         Vec3::new(rnd() - 0.5, rnd() - 0.5, 0.0)
     }

@@ -3,17 +3,26 @@ Based on the guide [RayTracing In One Weekend](https://raytracing.github.io/book
 
 Example rendered image:
 
-![alt text](./output/test.jpg)
+![alt text](./output/demo.jpg)
 
 Possible to-do:
-- [X] implement basics
+- [x] implement basics
 - [x] reduce cloning
-- [ ] set up benchmarking test
-- [ ] Box overuse?
-- [ ] Rng
-- [ ] replace with constants?
-- [ ] adjust to Rust
-- [ ] allocation on hot paths
+- [x] set up benchmarking test
+- [x] Box overuse?
+- [x] Rng
+- [x] adjust to Rust
+- [x] BVH
+- [x] multithread
+- [ ] textures
+- [ ] quadrilaterals
+- [ ] lights
+- [ ] instances
+- [ ] volumes
+- [ ] GUI
+- [ ] controls, real-time preview
+
+General optimization:
+- [ ] investigate hot paths
 - [ ] SIMD?
-- [ ] switch to f32 and compare?
-- [ ] multithread
+- [ ] replace with constants?
