@@ -1,4 +1,4 @@
-To re-familiarize myself with Rust, I felt it fitting to write a ray-marcher.
+To re-familiarize myself with Rust, I felt it fitting to write a raytracer.
 Based on the guide [RayTracing In One Weekend](https://raytracing.github.io/books/RayTracingInOneWeekend.html).
 
 Example rendered image:
@@ -25,4 +25,3 @@ Possible to-do:
 General optimization:
 - [ ] investigate hot paths
 - [ ] SIMD?
-- [ ] replace with constants?
