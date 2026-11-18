@@ -1,14 +1,12 @@
 pub mod camera {
     use image::{Rgb, RgbImage};
-    use rayon::iter::{IntoParallelIterator, ParallelIterator};
-    use rayon::{self};
     use rayon::prelude::*;
 
-    use crate::types::util::{self, degrees_to_radians, rnd};
-    use crate::types::vec3::{Vec3, Color};
+    use crate::util::util::{self, degrees_to_radians, rnd};
+    use crate::types::vec3::{Color, ColorTrait, Vec3};
     use crate::types::ray::Ray;
     use crate::types::interval::Interval;
-    use crate::hittables::hittables::{self, BVHNode, HitRecord, Hittable, HittableList};
+    use crate::hittables::hittables::{self, BVHNode, HitRecord, Hittable};
 
     pub struct Camera {
         // pub aspect_ratio: f64, // Ratio of img width over height
@@ -27,7 +25,7 @@ pub mod camera {
 
     impl Camera {
         fn f_put(&self, x: u32, y: u32, scene: &BVHNode) -> (u32, u32, Rgb<u8>) {
-            let mut pixel_color = Vec3::new(0.0, 0.0, 0.0);
+            let mut pixel_color: Color = Color::new(0.0, 0.0, 0.0);
             for _sample in 0..self.samples_per_pixel {
                 let r = self.get_ray(x, y);
                 pixel_color += Camera::ray_color(r, self.max_depth, &scene);
@@ -39,7 +37,7 @@ pub mod camera {
             return (x, y, pixel);
         }
 
-        pub fn render(&self, scene: &BVHNode) -> Result<(), image::ImageError> {
+        pub fn render(&self, scene: &BVHNode) -> image::RgbImage {
             // Image
             let ten_percent: u32 = self.image_width / 10;
             let mut img: RgbImage = RgbImage::new(self.image_width, self.image_height);
@@ -58,10 +56,10 @@ pub mod camera {
                     img.put_pixel(ix, iy, px);
                 }
             }
-            return img.save("output/test.jpg");
+            return img;
         }
 
-        fn ray_color(r: Ray, remaining_depth: i32, scene: &BVHNode) -> Vec3 {
+        fn ray_color(r: Ray, remaining_depth: i32, scene: &BVHNode) -> Color {
             if remaining_depth <= 0 { return Vec3::new(0.0, 0.0, 0.0)};
             
             let mut rec = HitRecord::new();
@@ -77,21 +75,15 @@ pub mod camera {
                 let unit_dir = r.dir.unit_vec();
                 let a = 0.5*(unit_dir.y + 1.0);
                 let res =
-                    (1.0-a) * <Vec3 as Color>::new(1.0, 1.0, 1.0)
-                        + a*<Vec3 as Color>::new(0.5, 0.7, 1.0);
+                    (1.0-a) * Color::new(1.0, 1.0, 1.0)
+                        + a* Color::new(0.5, 0.7, 1.0);
                 return res;
             }
         }
 
-        pub fn new(image_width: u32, image_height: u32, samples_per_pixel: u32, max_depth: i32) -> Self {
+        pub fn new(image_width: u32, image_height: u32, samples_per_pixel: u32, max_depth: i32, vfov: f64, lookfrom: Vec3, lookat: Vec3, defocus_angle: f64, focus_dist: f64) -> Self {
             // Camera config
-            let vfov = 20.0;
-            let lookfrom = Vec3::new(13.0, 2.0, 3.0);
-            let lookat = Vec3::new(0.0, 0.0, 0.0);
             let vup = Vec3::new(0.0, 1.0, 0.0);
-
-            let defocus_angle = 0.6;
-            let focus_dist = 10.0;
 
             let center = lookfrom.clone();
             let theta = degrees_to_radians(vfov);

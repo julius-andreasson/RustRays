@@ -2,8 +2,9 @@ pub mod hittables {
     use std::cmp::Ordering;
     use std::sync::Arc;
     use crate::types::interval::Interval;
-    use crate::types::vec3::{Vec3, Axis};
-    use crate::types::util;
+    use crate::types::vec3::{Axis, Color, Vec3};
+    use crate::util::util::{self, PI};
+    use crate::texture::texture::{SolidColor, T, Texture};
     use crate::types::ray::Ray;
 
     type A = Arc<dyn Hittable + Sync + Send>;
@@ -12,6 +13,8 @@ pub mod hittables {
     pub struct HitRecord {
         pub p: Vec3,
         pub t: f64,
+        pub u: f64,
+        pub v: f64,
         pub mat: Material,
         pub normal: Vec3,
         pub front_face: bool
@@ -27,7 +30,7 @@ pub mod hittables {
         }
         
         pub fn new() -> Self {
-            Self { p: Vec3::default(), t: 0.0, mat: Material::Lambertian{albedo: Vec3::new(0.5, 0.5, 0.5), _f: f64::default() }, normal: Vec3::default(), front_face: true }
+            Self { p: Vec3::default(), t: 0.0, u: 0.0, v: 0.0, mat: Material::Lambertian{ tex: Material::from_color(Vec3::new(0.5, 0.5, 0.5)) }, normal: Vec3::default(), front_face: true }
         }
         
         fn set_to(&mut self, other: &HitRecord) {
@@ -106,6 +109,27 @@ pub mod hittables {
             let bbox = AABB::from_points(&(&center-&rvec), &(&center+&rvec));
             Self { center: center, radius: radius, mat: mat, bbox }
         }
+
+        pub fn get_sphere_uv(p: &Vec3, u: f64, v: f64) -> (f64, f64) {
+            // p: a given point on the sphere of radius one, centered at the origin.    $
+            // u: returned value [0,1] of angle around the Y axis from X=-1.            $
+            // v: returned value [0,1] of angle from Y=-1 to Y=+1.                      $
+            //     <1 0 0> yields <0.50 0.50>       <-1  0  0> yields <0.00 0.50>       $
+            //     <0 1 0> yields <0.50 1.00>       < 0 -1  0> yields <0.50 0.00>       $
+            //     <0 0 1> yields <0.25 0.50>       < 0  0 -1> yields <0.75 0.50>       $
+            let theta = (-&p.y).acos();
+            let phi = (-&p.z).atan2(p.x)+PI;
+            
+            return (phi/(2.0*PI), theta / PI)
+        }
+    //    static void get_sphere_uv(const point3& p, double& u, double& v) {
+
+    //     auto theta = std::acos(-p.y());
+    //     auto phi = std::atan2(-p.z(), p.x()) + pi;
+
+    //     u = phi / (2*pi);
+    //     v = theta / pi;
+    // }
     }
 
     impl Hittable for Sphere {
@@ -133,6 +157,7 @@ pub mod hittables {
             rec.t = root;
             rec.p = r.at(rec.t);
             let outward_normal = (&rec.p - &self.center) / self.radius;
+            (rec.u, rec.v) = Sphere::get_sphere_uv(&outward_normal, rec.u, rec.v);
             rec.set_face_normal(r, outward_normal);
             rec.mat = self.mat.clone();
 
@@ -145,14 +170,19 @@ pub mod hittables {
 
     #[derive(Clone)]
     pub enum Material {
-        Lambertian{albedo: Vec3, _f: f64},
+        Lambertian{tex: Arc<T>},
         Metal{albedo: Vec3, fuzz: f64},
-        Dielectric{_vec3: Vec3, refraction_index: f64}
+        Dielectric{refraction_index: f64}
+    }
+    impl Material {
+        pub fn from_color(new: Color) -> Arc<T> {
+            Arc::new(SolidColor::from_color(new))
+        }
     }
 
     pub fn scatter(r_in: &Ray, rec: HitRecord, attenuation: &mut Vec3, scattered: &mut Ray) -> bool {
         match rec.mat {
-            Material::Lambertian { albedo, _f } => {
+            Material::Lambertian { tex } => {
                 let pre_scatter_dir = &rec.normal + Vec3::random_unit_vec();
                 // Catch degenerate scatter direction $
                 let scatter_dir = if pre_scatter_dir.near_zero() {
@@ -161,9 +191,9 @@ pub mod hittables {
                     pre_scatter_dir
                 };
 
+                *attenuation = tex.value(rec.u, rec.v, &rec.p);
                 let ray = Ray::new(rec.p, scatter_dir);
                 *scattered = ray;
-                *attenuation = albedo;
                 return true;
             },
             Material::Metal { albedo, fuzz } => {
@@ -174,7 +204,7 @@ pub mod hittables {
                 *attenuation = albedo;
                 return Vec3::dot(&scattered.dir, &rec.normal) > 0.0;
             },
-            Material::Dielectric { _vec3, refraction_index} => {
+            Material::Dielectric { refraction_index} => {
                 let ri = if rec.front_face {1.0/refraction_index} else {refraction_index};
                 let unit_dir = Vec3::unit_vec(&r_in.dir);
                 
