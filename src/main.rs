@@ -7,7 +7,6 @@ mod camera;
 mod texture;
 
 fn main() {
-    // gui::run_frame();
     gen_and_save();
 }
 
@@ -20,12 +19,17 @@ mod img {
     use crate::texture::texture::{CheckerTexture, ImageTexture};
     use crate::util::util::{rnd, rnd_range};
     use crate::types::vec3::{Color, Vec3};
-    use crate::hittables::hittables::{BVHNode, HittableList, Material, Sphere};
+    use crate::hittables::hittables::{BVHNode, HittableList, Material, Shape2D, Shape2DVariant, Sphere};
     
     pub fn gen_and_save() {
         let img = gen_img();
         let _ = img.save("output/test.jpg");
     }
+
+    static WIDTH: u32 = 400;
+    static HEIGHT: u32 = 400;
+    static SAMPLES_PER_PIXEL: u32 = 5;
+    static MAX_DEPTH: i32 = 5;
 
     pub fn gen_img() -> image::RgbImage {
         println!("Building scene...");
@@ -33,7 +37,7 @@ mod img {
 
         // Scene
         // Produce scene by splitting objects into BVHNodes
-        let (scene, cam): (BVHNode, Camera) = gen_scene(Scenes::Checker);
+        let (scene, cam): (BVHNode, Camera) = gen_scene(Scenes::Test);
 
         println!("Starting render...");
         let res = cam.render(&scene);
@@ -46,6 +50,8 @@ mod img {
         Base,
         Checker,
         Globe,
+        Quads,
+        Test,
     }
 
     fn gen_scene(choice: Scenes) -> (BVHNode, Camera) {
@@ -94,17 +100,13 @@ mod img {
                 world.add(Sphere::new(Vec3::new(4.0, 1.0, 0.0), 1.0, mat3));
 
                 // Camera
-                let width = 400;
-                let height = 300;
-                let samples_per_pixel = 2;
-                let max_depth = 3;
                 let vfov = 20.0;
                 let lookfrom = Vec3::new(13.0, 2.0, 3.0);
                 let lookat = Vec3::new(0.0, 0.0, 0.0);
                 let defocus_angle = 0.6;
                 let focus_dist = 10.0;
                 
-                cam = Camera::new(width, height, samples_per_pixel, max_depth, vfov, lookfrom, lookat, defocus_angle, focus_dist);
+                cam = Camera::new(WIDTH, HEIGHT, SAMPLES_PER_PIXEL, MAX_DEPTH, vfov, lookfrom, lookat, defocus_angle, focus_dist);
             },
             Scenes::Checker => {
                 // Materials
@@ -118,17 +120,13 @@ mod img {
                 world.add(Sphere::new(Vec3::new(0.0, 5.0, 0.0), 5.0, mat_checker_2));
 
                 // Camera
-                let width = 400;
-                let height = 300;
-                let samples_per_pixel = 2;
-                let max_depth = 3;
                 let vfov = 20.0;
                 let lookfrom = Vec3::new(40.0, -10.0, 40.0);
                 let lookat = Vec3::new(0.0, 0.0, 0.0);
                 let defocus_angle = 0.0;
                 let focus_dist = 10.0;
                 
-                cam = Camera::new(width, height, samples_per_pixel, max_depth, vfov, lookfrom, lookat, defocus_angle, focus_dist);
+                cam = Camera::new(WIDTH, HEIGHT, SAMPLES_PER_PIXEL, MAX_DEPTH, vfov, lookfrom, lookat, defocus_angle, focus_dist);
             },
             Scenes::Globe => {
                 // Materials
@@ -137,17 +135,70 @@ mod img {
                 world.add(Sphere::new(Vec3::new(0.0, 0.0, 0.0), 2.0, mat));
 
                 // Camera
-                let width = 400;
-                let height = 300;
-                let samples_per_pixel = 2;
-                let max_depth = 3;
                 let vfov = 20.0;
                 let lookfrom = Vec3::new(0.0, 0.0, 12.0);
                 let lookat = Vec3::new(0.0, 0.0, 0.0);
                 let defocus_angle = 0.0;
                 let focus_dist = 10.0;
                 
-                cam = Camera::new(width, height, samples_per_pixel, max_depth, vfov, lookfrom, lookat, defocus_angle, focus_dist);
+                cam = Camera::new(WIDTH, HEIGHT, SAMPLES_PER_PIXEL, MAX_DEPTH, vfov, lookfrom, lookat, defocus_angle, focus_dist);
+            },
+            Scenes::Quads => {
+                // Materials
+                let checker_tex = Arc::new(ImageTexture::new("textures/checker.jpg"));
+                let mat_tex = Material::Lambertian { tex: checker_tex };
+                let checker_gen = Arc::new(CheckerTexture::from_color(0.32, Color::new(0.2, 0.3, 0.1), Color::new(0.9, 0.9, 0.9)));
+                let mat_gen = Material::Lambertian { tex: checker_gen };
+                world.add(Shape2D::new(Vec3::new(-3.0, -2.0, 5.0), Vec3::new(0.0, 0.0, -4.0), Vec3::new(0.0, 4.0, 0.0), Shape2DVariant::Quad, mat_gen.clone()));
+                world.add(Shape2D::new(Vec3::new(-2.0, -2.0, 0.0), Vec3::new(4.0, 0.0, 0.0), Vec3::new(0.0, 4.0, 0.0), Shape2DVariant::Quad, mat_gen.clone()));
+                world.add(Shape2D::new(Vec3::new(3.0, -2.0, 1.0), Vec3::new(0.0, 0.0, 4.0), Vec3::new(0.0, 4.0, 0.0), Shape2DVariant::Quad, mat_gen.clone()));
+                world.add(Shape2D::new(Vec3::new(-2.0, 3.0, 1.0), Vec3::new(4.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 4.0), Shape2DVariant::Quad, mat_tex.clone()));
+                world.add(Shape2D::new(Vec3::new(-2.0, -3.0, 5.0), Vec3::new(4.0, 0.0, 0.0), Vec3::new(0.0, 0.0, -4.0), Shape2DVariant::Quad, mat_gen.clone()));
+
+                let earth_tex = Arc::new(ImageTexture::new("textures/earthmap.jpg"));
+                let earth_mat = Material::Lambertian { tex: earth_tex };
+                world.add(Sphere::new(Vec3::new(0.0, 0.0, 0.0), 2.0, earth_mat));
+
+                // Camera
+                let vfov = 80.0;
+                let lookfrom = Vec3::new(0.0, 0.0, 9.0);
+                let lookat = Vec3::new(0.0, 0.0, 0.0);
+                let defocus_angle = 0.0;
+                let focus_dist = 10.0;
+                
+                cam = Camera::new(WIDTH, HEIGHT, SAMPLES_PER_PIXEL, MAX_DEPTH, vfov, lookfrom, lookat, defocus_angle, focus_dist);
+            },
+            Scenes::Test => {
+                // Camera
+                let vfov = 80.0;
+                let lookfrom = Vec3::new(0.0, 0.0, 10.0);
+                let lookat = Vec3::new(0.0, 0.0, 0.0);
+                let defocus_angle = 0.0;
+                let focus_dist = 10.0;
+                
+                cam = Camera::new(WIDTH, HEIGHT, SAMPLES_PER_PIXEL, MAX_DEPTH, vfov, lookfrom, lookat, defocus_angle, focus_dist);
+
+                // Materials
+                let checker_tex = Arc::new(ImageTexture::new("textures/checker.jpg"));
+                let mat_tex = Material::Lambertian { tex: checker_tex };
+                let checker_gen = Arc::new(CheckerTexture::from_color(0.32, Color::new(0.2, 0.3, 0.1), Color::new(0.9, 0.9, 0.9)));
+                let mat_gen = Material::Lambertian { tex: checker_gen };
+                let earth_tex = Arc::new(ImageTexture::new("textures/earthmap.jpg"));
+                let earth_mat = Material::Lambertian { tex: earth_tex };
+
+                world.add(Shape2D::new(Vec3::new(-4.0, -2.0, 5.0), Vec3::new(0.0, 0.0, -4.0), Vec3::new(0.0, 4.0, 0.0), Shape2DVariant::Disk, mat_gen.clone()));
+                world.add(Shape2D::new(Vec3::new(4.0, -2.0, 1.0), Vec3::new(0.0, 0.0, 4.0), Vec3::new(0.0, 4.0, 0.0), Shape2DVariant::Triangle, mat_gen.clone()));
+                // world.add(Disk::new(Vec3::new(-2.0, 3.0, 1.0), Vec3::new(4.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 4.0), mat_tex.clone()));
+                world.add(Shape2D::new(Vec3::new(-2.0, -3.0, 5.0), Vec3::new(4.0, 0.0, 0.0), Vec3::new(0.0, 0.0, -4.0), Shape2DVariant::Quad, mat_gen.clone()));
+                
+                world.add(Shape2D::from_center_rad_norm(Vec3::new(2.5, 0.0, 0.0), 2.0, cam.get_look_dir(), Shape2DVariant::Quad, earth_mat.clone()));
+                world.add(Shape2D::from_center_rad_norm(Vec3::new(0.0, 4.0, 0.0), 2.0, &Vec3::new(0.71, 0.71, 0.0), Shape2DVariant::Quad, earth_mat.clone()));
+                world.add(Shape2D::from_center_rad_norm(Vec3::new(7.0, 4.0, 0.0), 2.0, cam.get_look_dir(), Shape2DVariant::Disk, earth_mat.clone()));
+                // world.add(Disk::new(Vec3::new(0.5, -2.0, 0.0), Vec3::new(4.0, 0.0, 0.0), Vec3::new(0.0, 4.0, 0.0), earth_mat.clone()));
+                // world.add(Disk::new(Vec3::new(0.5, -2.0, 0.0), Vec3::new(4.0, 0.0, 0.0), Vec3::new(0.0, 4.0, 0.0), earth_mat.clone()));
+                // world.add(Disk::new(Vec3::new(-4.5, -2.0, 0.0), Vec3::new(4.0, 0.0, 0.0), Vec3::new(0.0, 4.0, 0.0), earth_mat.clone()));
+                world.add(Sphere::new(Vec3::new(-2.5, 0.0, 0.0), 2.0, earth_mat.clone()));
+            
             },
         }
 

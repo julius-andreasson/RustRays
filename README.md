@@ -14,8 +14,10 @@ Possible to-do:
 - [x] adjust to Rust
 - [x] BVH
 - [x] multithread
-- [ ] textures
-- [ ] quadrilaterals
+- [x] textures
+- [x] quadrilaterals
+- [x] disks
+- [x] triangles
 - [ ] lights
 - [ ] instances
 - [ ] volumes

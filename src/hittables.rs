@@ -2,10 +2,10 @@ pub mod hittables {
     use std::cmp::Ordering;
     use std::sync::Arc;
     use crate::types::interval::Interval;
+    use crate::types::ray::Ray;
     use crate::types::vec3::{Axis, Color, Vec3};
     use crate::util::util::{self, PI};
-    use crate::texture::texture::{SolidColor, T, Texture};
-    use crate::types::ray::Ray;
+    use crate::texture::texture::{SolidColor, T};
 
     type A = Arc<dyn Hittable + Sync + Send>;
 
@@ -168,6 +168,124 @@ pub mod hittables {
         }
     }
 
+    pub enum Shape2DVariant {
+        Quad,
+        Disk,
+        Triangle,
+    }
+    pub struct Shape2D {
+        q: Vec3,
+        u: Vec3,
+        v: Vec3,
+        w: Vec3,
+        mat: Material,
+        bbox: AABB,
+        norm: Vec3,
+        d: f64,
+        variant: Shape2DVariant,
+    }
+    impl Shape2D {
+        pub fn from_center_rad_norm(center: Vec3, radius: f64, norm: &Vec3, variant: Shape2DVariant, mat: Material) -> Self {
+            // let norm = norm.unit_vec(); // safety
+            let vup: Vec3; // unsafe when VUP is parallel to NORM, so if NORM is almost Y, we set VUP to X instead.
+            if norm.unit_vec().y > 0.99 {
+                vup = Vec3::new(1.0, 0.0, 0.0);
+            } else {
+                vup = Vec3::new(0.0, 1.0, 0.0);
+            }
+            let u = vup.cross(&norm).unit_vec()*radius; // really, *2.0 for both U and V, but we postpone multiplication to calc Q.
+            let v = norm.cross(&u).unit_vec()*radius;
+            let q = &center - &u - &v;
+            Self::new(q, 2.0*u, 2.0*v, variant, mat)
+        }
+
+        pub fn new(q: Vec3, u: Vec3, v: Vec3, variant: Shape2DVariant, mat: Material) -> Self {
+            let n = u.cross(&v);
+            let norm = n.unit_vec();
+            let d = norm.dot(&q);
+            let w = &n / n.dot(&n);
+
+            let bbox_diag1 = AABB::from_points(&q, &(&q + &u + &v));
+            let bbox_diag2 = AABB::from_points(&(&q + &u), &(&q + &v));
+            let bbox = AABB::from_aabbs(&bbox_diag1, &bbox_diag2);
+
+            Self {q, u, v, w, mat, bbox, norm, d, variant}
+        }
+        
+        fn is_interior(a: f64, b: f64, rec: &mut HitRecord, variant: &Shape2DVariant) -> bool {
+            // Given the hit point in plane coordinates, return false if it is outside the $
+            // primitive, otherwise set the hit record UV coordinates and return true. $
+            match variant {
+                Shape2DVariant::Quad => {
+                    let unit_interval = Interval::new(0.0, 1.0);
+
+                    if !unit_interval.contains(a) || !unit_interval.contains(b) {
+                        return false;
+                    }
+
+                    rec.u = a;
+                    rec.v = b;
+                    return true;
+                },
+                Shape2DVariant::Disk => {
+                    let ia = a - 0.5;
+                    let ib = b - 0.5;
+
+                    if (ia*ia+ib*ib).sqrt() > 0.5 {
+                        return false;
+                    }
+
+                    rec.u = a;
+                    rec.v = b;
+                    return true;
+                },
+                Shape2DVariant::Triangle => {
+                    if !(a > 0.0 && b > 0.0 && a + b < 1.0) {
+                        return false;
+                    }
+
+                    rec.u = a;
+                    rec.v = b;
+                    return true;
+                },
+            }
+        }
+    }
+    impl Hittable for Shape2D {
+        fn hit(&self, r: &Ray, ray_t: &Interval, rec: &mut HitRecord) -> bool {
+            let denom = &self.norm.dot(&r.dir);
+            // No hit if the ray is parallel to the plane. $
+            if denom.abs() < 1e-8 {
+                return false;
+            }
+            // Return false if the hit point parameter t is outside the ray interval. $
+            let t = (&self.d - &self.norm.dot(&r.orig)) / denom;
+            if !ray_t.contains(t) {
+                return false;
+            }
+
+            let intersection = r.at(t);
+            let planar_hitpt_vec = &intersection - &self.q;
+            let alpha = self.w.dot(&planar_hitpt_vec.cross(&self.v));
+            let beta = self.w.dot(&self.u.cross(&planar_hitpt_vec));
+
+            if !Shape2D::is_interior(alpha, beta, rec, &self.variant) {
+                return false;
+            }
+
+            rec.t = t;
+            rec.p = intersection;
+            rec.mat = self.mat.clone();
+            rec.set_face_normal(r, self.norm.clone());
+
+            return true;
+        }
+    
+        fn get_bbox(&self) -> &AABB {
+            return &self.bbox
+        }
+    }
+
     #[derive(Clone)]
     pub enum Material {
         Lambertian{tex: Arc<T>},
@@ -257,7 +375,9 @@ pub mod hittables {
         }
 
         pub fn from_intervals(x: Interval, y: Interval, z: Interval) -> AABB {
-            AABB { x, y, z }
+            let mut res = AABB { x, y, z };
+            res.pad_to_mins();
+            return res;
         }
         
         pub fn from_points(a: &Vec3, b: &Vec3) -> AABB {
@@ -266,7 +386,9 @@ pub mod hittables {
             let x = if a.x <= b.x {Interval::new(a.x, b.x)} else {Interval::new(b.x, a.x)};
             let y = if a.y <= b.y {Interval::new(a.y, b.y)} else {Interval::new(b.y, a.y)};
             let z = if a.z <= b.z {Interval::new(a.z, b.z)} else {Interval::new(b.z, a.z)};
-            AABB { x, y, z }
+            let mut res = AABB { x, y, z };
+            res.pad_to_mins();
+            return res;
         }
 
         pub fn from_aabbs(a: &AABB, b: &AABB) -> AABB {
@@ -325,6 +447,14 @@ pub mod hittables {
             } else {
                 return Axis::Z
             }
+        }
+
+        fn pad_to_mins(&mut self) {
+            // Adjust the AABB so that no side is narrower than some delta, padding if necessary. $
+            let delta: f64 = 0.0001;
+            if self.x.size() < delta {self.x = self.x.expand(delta)}
+            if self.y.size() < delta {self.y = self.y.expand(delta)}
+            if self.z.size() < delta {self.z = self.z.expand(delta)}
         }
     }
 

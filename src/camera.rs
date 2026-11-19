@@ -20,10 +20,15 @@ pub mod camera {
         max_depth: i32,
         defocus_disk_u: Vec3,
         defocus_disk_v: Vec3,
-        defocus_angle: f64
+        defocus_angle: f64,
+        look_dir: Vec3,
     }
 
     impl Camera {
+        pub fn get_look_dir(&self) -> &Vec3 {
+            &self.look_dir
+        }
+        
         fn f_put(&self, x: u32, y: u32, scene: &BVHNode) -> (u32, u32, Rgb<u8>) {
             let mut pixel_color: Color = Color::new(0.0, 0.0, 0.0);
             for _sample in 0..self.samples_per_pixel {
@@ -91,9 +96,9 @@ pub mod camera {
             let viewport_height = 2.0 * h * focus_dist;
             let viewport_width = viewport_height * image_width as f64 / image_height as f64;
             
-            let w = (lookfrom - lookat).unit_vec();
-            let u = vup.cross(&w).unit_vec();
-            let v = w.cross(&u);
+            let look_dir = (lookfrom - lookat).unit_vec();
+            let u = vup.cross(&look_dir).unit_vec();
+            let v = look_dir.cross(&u);
             
             // Calculate the vectors across the horizontal and down the vertical viewport edges. $
             let viewport_u = &u * viewport_width;
@@ -104,14 +109,14 @@ pub mod camera {
             let pixel_delta_v = &viewport_v / image_height as f64;
             
             // Calculate the location of the upper left pixel. $
-            let viewport_upper_left = &center - (focus_dist * w) - viewport_u*0.5 - viewport_v*0.5;
+            let viewport_upper_left = &center - (focus_dist * &look_dir) - viewport_u*0.5 - viewport_v*0.5;
             let pixel00_loc = viewport_upper_left + 0.5 * (&pixel_delta_u + &pixel_delta_v);
 
             let defocus_radius = focus_dist * degrees_to_radians(defocus_angle / 2.0).tan();
             let defocus_disk_u = u * defocus_radius;
             let defocus_disk_v = v * defocus_radius;
 
-            Camera { image_width, image_height, center, pixel00_loc, pixel_delta_u, pixel_delta_v, samples_per_pixel, max_depth, defocus_disk_u, defocus_disk_v, defocus_angle }
+            Camera { image_width, image_height, center, pixel00_loc, pixel_delta_u, pixel_delta_v, samples_per_pixel, max_depth, defocus_disk_u, defocus_disk_v, defocus_angle, look_dir }
         }
         
         fn get_ray(&self, x: u32, y: u32) -> Ray {
