@@ -4,7 +4,7 @@ pub mod texture {
 
     use crate::types::{interval::Interval, vec3::{Color, Vec3}};
 
-    pub type T = dyn Texture + Sync + Send;
+    pub type Tex = dyn Texture + Sync + Send;
 
     // let checker = Arc::new(CheckerTexture::from_color
     pub static ERROR_TEXTURE: ErrorTexture = ErrorTexture::new();
@@ -63,12 +63,12 @@ pub mod texture {
     // Checker
     pub struct CheckerTexture {
         inv_scale: f64,
-        even: Arc<T>,
-        odd: Arc<T>,
+        even: Arc<Tex>,
+        odd: Arc<Tex>,
     }
 
     impl CheckerTexture {
-        pub fn from_texture(scale: f64, even: Arc<T>, odd: Arc<T>) -> Self {
+        pub fn from_texture(scale: f64, even: Arc<Tex>, odd: Arc<Tex>) -> Self {
             Self { inv_scale: 1.0/scale, even, odd }
         }
         pub fn from_color(scale: f64, c1: Color, c2: Color) -> Self {

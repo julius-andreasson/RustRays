@@ -22,6 +22,7 @@ pub mod camera {
         defocus_disk_v: Vec3,
         defocus_angle: f64,
         look_dir: Vec3,
+        background: Color,
     }
 
     impl Camera {
@@ -33,7 +34,7 @@ pub mod camera {
             let mut pixel_color: Color = Color::new(0.0, 0.0, 0.0);
             for _sample in 0..self.samples_per_pixel {
                 let r = self.get_ray(x, y);
-                pixel_color += Camera::ray_color(r, self.max_depth, &scene);
+                pixel_color += Camera::ray_color(r, self.max_depth, &scene, &self.background);
             }
             let color = pixel_color / self.samples_per_pixel as f64;
 
@@ -64,29 +65,40 @@ pub mod camera {
             return img;
         }
 
-        fn ray_color(r: Ray, remaining_depth: i32, scene: &BVHNode) -> Color {
+        fn ray_color(r: Ray, remaining_depth: i32, scene: &BVHNode, background: &Color) -> Color {
             if remaining_depth <= 0 { return Vec3::new(0.0, 0.0, 0.0)};
             
             let mut rec = HitRecord::new();
-            if scene.hit(&r, &Interval::new(0.001, util::INF), &mut rec) {
+
+
+            // if (!rec.mat->scatter(r, rec, attenuation, scattered))
+            //     return color_from_emission;
+
+            // color color_from_scatter = attenuation * ray_color(scattered, depth-1, world);
+
+            // return color_from_emission + color_from_scatter;
+            if !scene.hit(&r, &Interval::new(0.001, util::INF), &mut rec) {
+                return background.clone();
+                // let unit_dir = r.dir.unit_vec();
+                // let a = 0.5*(unit_dir.y + 1.0);
+                // let res =
+                //     (1.0-a) * Color::new(1.0, 1.0, 1.0)
+                //         + a* Color::new(0.5, 0.7, 1.0);
+                // return res;
+            } else {
                 let mut scattered = Ray::default();
                 let mut attenuation = Vec3::default();
-                if hittables::scatter(&r, rec, &mut attenuation, &mut scattered) {
-                    return attenuation * Camera::ray_color(scattered, remaining_depth - 1, &scene);
+                let color_from_emission = rec.mat.emitted(rec.u, rec.v, &rec.p);
+                if !hittables::scatter(&r, rec, &mut attenuation, &mut scattered) {
+                    return color_from_emission;
+                } else {
+                    let color_from_scatter = attenuation * Camera::ray_color(scattered, remaining_depth - 1, &scene, background);
+                    return color_from_emission + color_from_scatter;
                 }
-                return Vec3::default();
-
-            } else {
-                let unit_dir = r.dir.unit_vec();
-                let a = 0.5*(unit_dir.y + 1.0);
-                let res =
-                    (1.0-a) * Color::new(1.0, 1.0, 1.0)
-                        + a* Color::new(0.5, 0.7, 1.0);
-                return res;
             }
         }
 
-        pub fn new(image_width: u32, image_height: u32, samples_per_pixel: u32, max_depth: i32, vfov: f64, lookfrom: Vec3, lookat: Vec3, defocus_angle: f64, focus_dist: f64) -> Self {
+        pub fn new(image_width: u32, image_height: u32, samples_per_pixel: u32, max_depth: i32, vfov: f64, lookfrom: Vec3, lookat: Vec3, defocus_angle: f64, focus_dist: f64, background: Color) -> Self {
             // Camera config
             let vup = Vec3::new(0.0, 1.0, 0.0);
 
@@ -116,7 +128,7 @@ pub mod camera {
             let defocus_disk_u = u * defocus_radius;
             let defocus_disk_v = v * defocus_radius;
 
-            Camera { image_width, image_height, center, pixel00_loc, pixel_delta_u, pixel_delta_v, samples_per_pixel, max_depth, defocus_disk_u, defocus_disk_v, defocus_angle, look_dir }
+            Camera { image_width, image_height, center, pixel00_loc, pixel_delta_u, pixel_delta_v, samples_per_pixel, max_depth, defocus_disk_u, defocus_disk_v, defocus_angle, look_dir, background }
         }
         
         fn get_ray(&self, x: u32, y: u32) -> Ray {

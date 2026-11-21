@@ -5,7 +5,7 @@ pub mod hittables {
     use crate::types::ray::Ray;
     use crate::types::vec3::{Axis, Color, Vec3};
     use crate::util::util::{self, PI};
-    use crate::texture::texture::{SolidColor, T};
+    use crate::texture::texture::{SolidColor, Tex};
 
     type A = Arc<dyn Hittable + Sync + Send>;
 
@@ -30,7 +30,7 @@ pub mod hittables {
         }
         
         pub fn new() -> Self {
-            Self { p: Vec3::default(), t: 0.0, u: 0.0, v: 0.0, mat: Material::Lambertian{ tex: Material::from_color(Vec3::new(0.5, 0.5, 0.5)) }, normal: Vec3::default(), front_face: true }
+            Self { p: Vec3::default(), t: 0.0, u: 0.0, v: 0.0, mat: Material::Lambertian{ tex: Material::tex_from_color(Vec3::new(0.5, 0.5, 0.5)) }, normal: Vec3::default(), front_face: true }
         }
         
         fn set_to(&mut self, other: &HitRecord) {
@@ -122,14 +122,6 @@ pub mod hittables {
             
             return (phi/(2.0*PI), theta / PI)
         }
-    //    static void get_sphere_uv(const point3& p, double& u, double& v) {
-
-    //     auto theta = std::acos(-p.y());
-    //     auto phi = std::atan2(-p.z(), p.x()) + pi;
-
-    //     u = phi / (2*pi);
-    //     v = theta / pi;
-    // }
     }
 
     impl Hittable for Sphere {
@@ -288,13 +280,27 @@ pub mod hittables {
 
     #[derive(Clone)]
     pub enum Material {
-        Lambertian{tex: Arc<T>},
+        Lambertian{tex: Arc<Tex>},
         Metal{albedo: Vec3, fuzz: f64},
-        Dielectric{refraction_index: f64}
+        Dielectric{refraction_index: f64},
+        DiffuseLight{tex: Arc<Tex>},
     }
     impl Material {
-        pub fn from_color(new: Color) -> Arc<T> {
+        pub fn light_from_color(emit: Color) -> Self {
+            Self::DiffuseLight { tex: Material::tex_from_color(emit) }
+        }
+        pub fn tex_from_color(new: Color) -> Arc<Tex> { // Weird placement of this tbh. §
             Arc::new(SolidColor::from_color(new))
+        }
+        pub fn emitted(&self, u: f64, v: f64, p: &Vec3) -> Color {
+            match self {
+                Material::DiffuseLight { tex } => {
+                    tex.value(u, v, p)
+                },
+                _ => {
+                    return Color::new(0.0, 0.0, 0.0);
+                },
+            }
         }
     }
 
@@ -340,6 +346,9 @@ pub mod hittables {
                 *scattered = Ray::new(rec.p, dir);
                 *attenuation = Vec3::new(1.0, 1.0, 1.0);
                 return true;
+            },
+            Material::DiffuseLight { tex: _ } => {
+                return false;
             },
         }
     }
